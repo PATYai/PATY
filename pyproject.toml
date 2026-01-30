@@ -1,0 +1,26 @@
+[project]
+name = "paty"
+version = "0.1.0"
+description = "PATY (Please And Thank You) - Low latency AI assistant"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "mcp",
+    "litellm",
+    "google-cloud-aiplatform",
+    "torch",
+    "torchaudio",
+    "faster-whisper",
+    "silero-vad",
+    "sounddevice",
+    "numpy",
+    "kokoro-onnx",
+    "soundfile",
+    "webrtcvad",
+    "pyaudio",
+    "python-dotenv",
+]
+
+[tool.uv]
+# Optimization for pytorch to use system cuda if needed or download generic wheels
+# For now, we stick to standard index.
