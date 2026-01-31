@@ -1,5 +1,12 @@
-voices.bin
-voices-v1.0.bin
+.env
+.env.*
+!.env.example
+.DS_Store
 __pycache__
+.idea
+KMS
 .venv
-kokoro-v1.0.onnx
+.vscode
+*.egg-info
+.pytest_cache
+.ruff_cache
