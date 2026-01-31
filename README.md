@@ -2,26 +2,47 @@
   <img src="./.github/assets/livekit-mark.png" alt="LiveKit logo" width="100" height="100">
 </a>
 
-# LiveKit Agents Starter - Python
+# PATY - Please And Thank You
 
-A complete starter project for building voice AI apps with [LiveKit Agents for Python](https://github.com/livekit/agents) and [LiveKit Cloud](https://cloud.livekit.io/).
+A polite voice AI agent built with [LiveKit Agents for Python](https://github.com/livekit/agents) and [LiveKit Cloud](https://cloud.livekit.io/).
 
-The starter project includes:
+## Project Structure
 
-- A simple voice AI assistant, ready for extension and customization
-- A voice AI pipeline with [models](https://docs.livekit.io/agents/models) from OpenAI, Cartesia, and AssemblyAI served through LiveKit Cloud
-  - Easily integrate your preferred [LLM](https://docs.livekit.io/agents/models/llm/), [STT](https://docs.livekit.io/agents/models/stt/), and [TTS](https://docs.livekit.io/agents/models/tts/) instead, or swap to a realtime model like the [OpenAI Realtime API](https://docs.livekit.io/agents/models/realtime/openai)
-- Eval suite based on the LiveKit Agents [testing & evaluation framework](https://docs.livekit.io/agents/build/testing/)
-- [LiveKit Turn Detector](https://docs.livekit.io/agents/build/turns/turn-detector/) for contextually-aware speaker detection, with multilingual support
+This project consists of two components:
+
+| Component | Description |
+|-----------|-------------|
+| **`/voice`** | Voice AI agent for outbound calls |
+| **`/mcp`** | MCP server to control the voice agent |
+
+### Voice Agent (`/voice`)
+
+The voice agent (PATY) makes outbound calls and maintains a warm, polite conversation following the PATY protocol:
+- Always maintains a courteous tone
+- Starts requests with "Please"
+- Responds with "Thank you" when receiving information
+
+Features:
+- Voice AI pipeline with [models](https://docs.livekit.io/agents/models) from OpenAI, Cartesia, and AssemblyAI
+- [LiveKit Turn Detector](https://docs.livekit.io/agents/build/turns/turn-detector/) for multilingual support
 - [Background voice cancellation](https://docs.livekit.io/home/cloud/noise-cancellation/)
-- Integrated [metrics and logging](https://docs.livekit.io/agents/build/metrics/)
-- A Dockerfile ready for [production deployment](https://docs.livekit.io/agents/ops/deployment/)
+- Dockerfile ready for [production deployment](https://docs.livekit.io/agents/ops/deployment/)
 
-This starter app is compatible with any [custom web/mobile frontend](https://docs.livekit.io/agents/start/frontend/) or [SIP-based telephony](https://docs.livekit.io/agents/start/telephony/).
+### MCP Server (`/mcp`)
 
-## Coding agents and MCP
+Control the voice agent via MCP tools:
 
-This project is designed to work with coding agents like [Cursor](https://www.cursor.com/) and [Claude Code](https://www.anthropic.com/claude-code). 
+| Tool | Description |
+|------|-------------|
+| `make_call` | Initiate an outbound call |
+| `end_call` | End an active call |
+| `list_rooms` | List active calls |
+| `get_call_status` | Get call status |
+| `update_participant_config` | Update call configuration |
+
+## Coding Agents and MCP
+
+This project is designed to work with coding agents like [Cursor](https://www.cursor.com/) and [Claude Code](https://www.anthropic.com/claude-code).
 
 To get the most out of these tools, install the [LiveKit Docs MCP server](https://docs.livekit.io/mcp).
 
@@ -35,107 +56,130 @@ For Claude Code, run this command:
 claude mcp add --transport http livekit-docs https://docs.livekit.io/mcp
 ```
 
-For Codex CLI, use this command to install the server:
+For Codex CLI:
 ```
 codex mcp add --url https://docs.livekit.io/mcp livekit-docs
 ```
 
-For Gemini CLI, use this command to install the server:
+For Gemini CLI:
 ```
 gemini mcp add --transport http livekit-docs https://docs.livekit.io/mcp
 ```
 
-The project includes a complete [AGENTS.md](AGENTS.md) file for these assistants. You can modify this file  your needs. To learn more about this file, see [https://agents.md](https://agents.md).
+The project includes a complete [AGENTS.md](AGENTS.md) file for these assistants.
 
 ## Dev Setup
 
-Clone the repository and install dependencies to a virtual environment:
-
+1. Clone the repository:
 ```console
-cd agent-starter-python
-uv sync
+git clone <repo-url>
+cd PATY
 ```
 
-Sign up for [LiveKit Cloud](https://cloud.livekit.io/) then set up the environment by copying `.env.example` to `.env.local` and filling in the required keys:
+2. Sign up for [LiveKit Cloud](https://cloud.livekit.io/) and set up the environment:
+```console
+cp .env.example .env.local
+# Fill in LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+```
 
-- `LIVEKIT_URL`
-- `LIVEKIT_API_KEY`
-- `LIVEKIT_API_SECRET`
-
-You can load the LiveKit environment automatically using the [LiveKit CLI](https://docs.livekit.io/home/cli/cli-setup):
-
+Or use the [LiveKit CLI](https://docs.livekit.io/home/cli/cli-setup):
 ```bash
 lk cloud auth
 lk app env -w -d .env.local
 ```
 
-## Run the agent
-
-Before your first run, you must download certain models such as [Silero VAD](https://docs.livekit.io/agents/build/turns/vad/) and the [LiveKit turn detector](https://docs.livekit.io/agents/build/turns/turn-detector/):
-
-```console
-uv run python src/agent.py download-files
+3. Configure your SIP trunk in `participant.json`:
+```json
+{
+  "sip_number": "+1XXXXXXXXXX",
+  "sip_trunk_id": "ST_XXXXX",
+  "sip_call_to": "+1XXXXXXXXXX"
+}
 ```
 
-Next, run this command to speak to your agent directly in your terminal:
+## Running the Voice Agent
 
 ```console
-uv run python src/agent.py console
+cd voice
+uv sync
+uv run python src/agent.py download-files  # First time only
+uv run python src/agent.py console          # Test in terminal
+uv run python src/agent.py dev              # Run for frontend/telephony
 ```
 
-To run the agent for use with a frontend or telephony, use the `dev` command:
+## Running the MCP Server
 
 ```console
-uv run python src/agent.py dev
+cd mcp
+uv sync
+uv run python src/server.py
 ```
 
-In production, use the `start` command:
+To add the PATY MCP server to Claude Code:
+```bash
+claude mcp add paty-control "uv run --directory /path/to/PATY/mcp python src/server.py"
+```
 
+## Tests
+
+Run tests for the voice agent:
 ```console
-uv run python src/agent.py start
+cd voice
+uv run pytest -v
 ```
 
-## Frontend & Telephony
+## Deploying to Cloud Run
 
-Get started quickly with our pre-built frontend starter apps, or add telephony support:
+Both components can be deployed to Google Cloud Run. The project includes a GitHub Actions workflow for automated deployments.
 
-| Platform | Link | Description |
-|----------|----------|-------------|
-| **Web** | [`livekit-examples/agent-starter-react`](https://github.com/livekit-examples/agent-starter-react) | Web voice AI assistant with React & Next.js |
-| **iOS/macOS** | [`livekit-examples/agent-starter-swift`](https://github.com/livekit-examples/agent-starter-swift) | Native iOS, macOS, and visionOS voice AI assistant |
-| **Flutter** | [`livekit-examples/agent-starter-flutter`](https://github.com/livekit-examples/agent-starter-flutter) | Cross-platform voice AI assistant app |
-| **React Native** | [`livekit-examples/voice-assistant-react-native`](https://github.com/livekit-examples/voice-assistant-react-native) | Native mobile app with React Native & Expo |
-| **Android** | [`livekit-examples/agent-starter-android`](https://github.com/livekit-examples/agent-starter-android) | Native Android app with Kotlin & Jetpack Compose |
-| **Web Embed** | [`livekit-examples/agent-starter-embed`](https://github.com/livekit-examples/agent-starter-embed) | Voice AI widget for any website |
-| **Telephony** | [📚 Documentation](https://docs.livekit.io/agents/start/telephony/) | Add inbound or outbound calling to your agent |
+### One-time Setup
 
-For advanced customization, see the [complete frontend guide](https://docs.livekit.io/agents/start/frontend/).
+1. Install the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
 
-## Tests and evals
-
-This project includes a complete suite of evals, based on the LiveKit Agents [testing & evaluation framework](https://docs.livekit.io/agents/build/testing/). To run them, use `pytest`.
-
-```console
-uv run pytest
+2. Run the setup script:
+```bash
+export GCP_PROJECT_ID=your-project-id
+export GITHUB_REPO=owner/repo
+./scripts/setup-gcp.sh
 ```
 
-## Using this template repo for your own project
+3. Add the following secrets to your GitHub repository:
+   - `GCP_PROJECT_ID` - Your Google Cloud project ID
+   - `WIF_PROVIDER` - Workload Identity Federation provider (from setup script)
+   - `WIF_SERVICE_ACCOUNT` - Service account email (from setup script)
+   - `LIVEKIT_URL` - Your LiveKit Cloud URL
+   - `LIVEKIT_API_KEY` - Your LiveKit API key
+   - `LIVEKIT_API_SECRET` - Your LiveKit API secret
+   - `SIP_OUTBOUND_TRUNK_ID` - Your SIP trunk ID
 
-Once you've started your own project based on this repo, you should:
+4. Optionally set `GCP_REGION` as a repository variable (defaults to `us-central1`)
 
-1. **Check in your `uv.lock`**: This file is currently untracked for the template, but you should commit it to your repository for reproducible builds and proper configuration management. (The same applies to `livekit.toml`, if you run your agents in LiveKit Cloud)
+### Automatic Deployment
 
-2. **Remove the git tracking test**: Delete the "Check files not tracked in git" step from `.github/workflows/tests.yml` since you'll now want this file to be tracked. These are just there for development purposes in the template repo itself.
+Push to `main` to trigger deployment of both services, or use the "Run workflow" button in GitHub Actions to deploy selectively.
 
-3. **Add your own repository secrets**: You must [add secrets](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/using-secrets-in-github-actions) for `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` so that the tests can run in CI.
+### Manual Deployment
 
-## Deploying to production
+Build and deploy locally:
 
-This project is production-ready and includes a working `Dockerfile`. To deploy it to LiveKit Cloud or another environment, see the [deploying to production](https://docs.livekit.io/agents/ops/deployment/) guide.
+```bash
+# Voice agent
+cd voice
+docker build -t paty-voice .
+gcloud run deploy paty-voice --source .
 
-## Self-hosted LiveKit
+# MCP server
+cd mcp
+docker build -t paty-mcp .
+gcloud run deploy paty-mcp --source .
+```
 
-You can also self-host LiveKit instead of using LiveKit Cloud. See the [self-hosting](https://docs.livekit.io/home/self-hosting/) guide for more information. If you choose to self-host, you'll need to also use [model plugins](https://docs.livekit.io/agents/models/#plugins) instead of LiveKit Inference and will need to remove the [LiveKit Cloud noise cancellation](https://docs.livekit.io/home/cloud/noise-cancellation/) plugin.
+### Using the Deployed MCP Server
+
+Once deployed, connect to the MCP server:
+```bash
+claude mcp add --transport http paty-control https://paty-mcp-xxxxx.run.app/mcp
+```
 
 ## License
 

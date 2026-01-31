@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paty-mcp"
+version = "1.0.0"
+description = "MCP server for controlling the PATY voice agent"
+requires-python = ">=3.10, <3.14"
+
+dependencies = [
+    "fastmcp>=2,<3",
+    "livekit-api>=1.0",
+    "python-dotenv",
+]
+
+[dependency-groups]
+dev = [
+    "ruff",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "B", "A", "C4", "UP", "SIM", "RUF"]
+ignore = ["E501"]  # Line too long (handled by formatter)
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

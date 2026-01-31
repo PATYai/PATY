@@ -21,16 +21,26 @@ from livekit.agents import (
 from livekit.plugins import noise_cancellation, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
-logger = logging.getLogger("outbound-caller")
+logger = logging.getLogger("paty-voice")
 logger.setLevel(logging.INFO)
 
+# Load environment from root .env.local
+load_dotenv("../.env.local")
 load_dotenv(".env.local")
 
-# Load dial info from participant.json
-with open("participant.json") as f:
-    dial_info = json.load(f)
+# Path to participant.json (at project root)
+PARTICIPANT_CONFIG_PATH = os.environ.get(
+    "PARTICIPANT_CONFIG_PATH", "../participant.json"
+)
 
-outbound_trunk_id = dial_info.get("sip_trunk_id") or os.getenv("SIP_OUTBOUND_TRUNK_ID")
+
+def load_dial_info() -> dict:
+    """Load dial info from participant.json"""
+    config_path = PARTICIPANT_CONFIG_PATH
+    if os.path.exists(config_path):
+        with open(config_path) as f:
+            return json.load(f)
+    return {}
 
 
 class Assistant(Agent):
@@ -83,9 +93,27 @@ async def entrypoint(ctx: JobContext):
     logger.info(f"connecting to room {ctx.room.name}")
     await ctx.connect()
 
-    # Get phone number from participant.json
-    phone_number = dial_info["sip_call_to"]
+    # Load dial info from participant.json or job metadata
+    dial_info = load_dial_info()
+
+    # Override with job metadata if available (from MCP dispatch)
+    if ctx.job.metadata:
+        try:
+            metadata = json.loads(ctx.job.metadata)
+            dial_info.update(metadata)
+        except json.JSONDecodeError:
+            pass
+
+    outbound_trunk_id = dial_info.get("sip_trunk_id") or os.getenv(
+        "SIP_OUTBOUND_TRUNK_ID"
+    )
+    phone_number = dial_info.get("sip_call_to")
     participant_identity = dial_info.get("participant_identity", phone_number)
+
+    if not phone_number:
+        logger.error("No phone number provided in participant.json or job metadata")
+        ctx.shutdown()
+        return
 
     agent = Assistant()
 
@@ -149,6 +177,6 @@ if __name__ == "__main__":
         WorkerOptions(
             entrypoint_fnc=entrypoint,
             prewarm_fnc=prewarm,
-            agent_name="outbound-caller",
+            agent_name="paty-voice",
         )
     )

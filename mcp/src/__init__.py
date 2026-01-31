@@ -1,0 +1,1 @@
+# PATY MCP server package
