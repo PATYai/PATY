@@ -1,0 +1,9 @@
+{
+  "sip_number": "+17207067843",
+  "sip_trunk_id": "ST_XHEeEDCYUQ6L",
+  "sip_call_to": "+19706330939",
+  "room_name": "open-room",
+  "participant_identity": "sip-test",
+  "participant_name": "Test call participant",
+  "wait_until_answered": true
+}
