@@ -1,20 +1,88 @@
 # AGENTS.md
 
-This is a LiveKit Agents project. LiveKit Agents is a Python SDK for building voice AI agents. This project is intended to be used with LiveKit Cloud. See @README.md for more about the rest of the LiveKit ecosystem.
+PATY (Please And Thank You) is a LiveKit Agents project with two components:
 
-The following is a guide for working with this project.
+1. **`/voice`** - A voice AI agent built with LiveKit Agents for Python
+2. **`/mcp`** - An MCP server to control the voice agent
+
+This project is intended to be used with LiveKit Cloud. See @README.md for more details.
 
 ## Project structure
 
-This Python project uses the `uv` package manager. You should always use `uv` to install dependencies, run the agent, and run tests.
+```
+PATY/
+├── voice/                    # Voice agent project
+│   ├── src/
+│   │   └── agent.py         # Main agent entrypoint
+│   ├── tests/
+│   │   └── test_agent.py
+│   ├── pyproject.toml
+│   ├── Dockerfile
+│   └── .env.example
+├── mcp/                      # MCP server project
+│   ├── src/
+│   │   └── server.py        # MCP server entrypoint
+│   ├── pyproject.toml
+│   └── .env.example
+├── participant.json          # Shared config for calls
+├── .env.local               # Shared environment variables
+├── AGENTS.md
+├── CLAUDE.md
+└── README.md
+```
 
-All app-level code is in the `src/` directory. In general, simple agents can be constructed with a single `agent.py` file. Additional files can be added, but you must retain `agent.py` as the entrypoint (see the associated Dockerfile for how this is deployed).
+Both projects use the `uv` package manager. You should always use `uv` to install dependencies, run agents, and run tests.
 
-Be sure to maintain code formatting. You can use the ruff formatter/linter as needed: `uv run ruff format` and `uv run ruff check`.
+### Voice Agent (`/voice`)
+
+The voice agent handles outbound calls using LiveKit SIP. It uses:
+- AssemblyAI for speech-to-text
+- OpenAI GPT-4.1-mini for the LLM
+- Cartesia for text-to-speech
+- LiveKit Turn Detector for multilingual speaker detection
+
+Commands (run from `/voice` directory):
+```bash
+uv sync                              # Install dependencies
+uv run python src/agent.py download-files  # Download ML models
+uv run python src/agent.py console   # Test in terminal
+uv run python src/agent.py dev       # Run in development mode
+uv run python src/agent.py start     # Run in production mode
+uv run pytest                        # Run tests
+```
+
+### MCP Server (`/mcp`)
+
+The MCP server exposes tools for controlling the voice agent:
+
+| Tool | Description |
+|------|-------------|
+| `make_call` | Initiate an outbound call to a phone number |
+| `end_call` | End an active call by deleting the room |
+| `list_rooms` | List active rooms/calls |
+| `get_call_status` | Get status of a specific call/room |
+| `update_participant_config` | Update the participant.json configuration |
+| `get_participant_config` | Get the current participant.json configuration |
+
+Commands (run from `/mcp` directory):
+```bash
+uv sync                          # Install dependencies
+uv run python src/server.py      # Run the MCP server
+```
+
+To install the PATY MCP server in Claude Code:
+```bash
+claude mcp add paty-control "uv run --directory /path/to/PATY/mcp python src/server.py"
+```
+
+### Shared Configuration
+
+- **`participant.json`** - Configuration for SIP calls (phone numbers, trunk ID, etc.)
+- **`.env.local`** - Environment variables (LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
 
 ## LiveKit Documentation
 
-LiveKit Agents is a fast-evolving project, and the documentation is updated frequently. You should always refer to the latest documentation when working with this project. For your convenience, LiveKit offers an MCP server that can be used to browse and search its documentation. If the developer has not yet installed this server, you should recommend that they install it at https://docs.livekit.io/mcp. 
+LiveKit Agents is a fast-evolving project, and the documentation is updated frequently. You should always refer to the latest documentation when working with this project. For your convenience, LiveKit offers an MCP server that can be used to browse and search its documentation. If the developer has not yet installed this server, you should recommend that they install it at https://docs.livekit.io/mcp.
 
 ### LiveKit Docs MCP Server installation
 
@@ -43,7 +111,7 @@ If you are another agentic IDE, refer to your own documentation for how to insta
 
 ## Handoffs and tasks ("workflows")
 
-Voice AI agents are highly sensitive to excessive latency. For this reason, it's important to design complex agents in a structured manner that minimizes the amount of irrelevant context and unnecessary tools included in requests to the LLM. LiveKit Agents supports handoffs (one agent hands control to another) and tasks (tightly-scoped prompts to achieve a specific outcome) to support building reliable workflows. You should make use of these features, instead of writing long instruction prompts that cover multiple phases of a conversation.  Refer to the [documentation](https://docs.livekit.io/agents/build/workflows/) for more information.
+Voice AI agents are highly sensitive to excessive latency. For this reason, it's important to design complex agents in a structured manner that minimizes the amount of irrelevant context and unnecessary tools included in requests to the LLM. LiveKit Agents supports handoffs (one agent hands control to another) and tasks (tightly-scoped prompts to achieve a specific outcome) to support building reliable workflows. You should make use of these features, instead of writing long instruction prompts that cover multiple phases of a conversation. Refer to the [documentation](https://docs.livekit.io/agents/build/workflows/) for more information.
 
 ### Submit docs feedback to LiveKit
 
@@ -51,7 +119,7 @@ If you use the LiveKit Docs MCP Server to search or browse documentation, also s
 
 ## Testing
 
-When possible, add tests for agent behavior. Read the [documentation](https://docs.livekit.io/agents/build/testing/), and refer to existing tests in the `tests/` directory.  Run tests with `uv run pytest`.
+When possible, add tests for agent behavior. Read the [documentation](https://docs.livekit.io/agents/build/testing/), and refer to existing tests in the `voice/tests/` directory. Run tests with `uv run pytest` from the `/voice` directory.
 
 Important: When modifying core agent behavior such as instructions, tool descriptions, and tasks/workflows/handoffs, never just guess what will work. Always use test-driven development (TDD) and begin by writing tests for the desired behavior. For instance, if you're planning to add a new tool, write one or more tests for the tool's behavior, then iterate on the tool until the tests pass correctly. This will ensure you are able to produce a working, reliable agent for the user.
 

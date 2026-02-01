@@ -1,0 +1,139 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy_voice:
+        description: 'Deploy voice agent'
+        type: boolean
+        default: true
+      deploy_mcp:
+        description: 'Deploy MCP server'
+        type: boolean
+        default: true
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+  VOICE_SERVICE: paty-voice
+  MCP_SERVICE: paty-mcp
+
+jobs:
+  deploy-voice:
+    name: Deploy Voice Agent
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || inputs.deploy_voice
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        working-directory: voice
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/paty/${{ env.VOICE_SERVICE }}:${{ github.sha }}"
+          docker build -t $IMAGE .
+          docker push $IMAGE
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.VOICE_SERVICE }} \
+            --image ${{ env.IMAGE }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --no-allow-unauthenticated \
+            --min-instances 1 \
+            --max-instances 10 \
+            --memory 2Gi \
+            --cpu 2 \
+            --timeout 3600 \
+            --set-env-vars "LIVEKIT_URL=${{ secrets.LIVEKIT_URL }}" \
+            --set-env-vars "LIVEKIT_API_KEY=${{ secrets.LIVEKIT_API_KEY }}" \
+            --set-env-vars "LIVEKIT_API_SECRET=${{ secrets.LIVEKIT_API_SECRET }}" \
+            --set-env-vars "SIP_OUTBOUND_TRUNK_ID=${{ secrets.SIP_OUTBOUND_TRUNK_ID }}"
+
+      - name: Show deployment URL
+        run: |
+          gcloud run services describe ${{ env.VOICE_SERVICE }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)'
+
+  deploy-mcp:
+    name: Deploy MCP Server
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || inputs.deploy_mcp
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        working-directory: mcp
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/paty/${{ env.MCP_SERVICE }}:${{ github.sha }}"
+          docker build -t $IMAGE .
+          docker push $IMAGE
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.MCP_SERVICE }} \
+            --image ${{ env.IMAGE }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --min-instances 0 \
+            --max-instances 5 \
+            --memory 512Mi \
+            --cpu 1 \
+            --timeout 300 \
+            --set-env-vars "LIVEKIT_URL=${{ secrets.LIVEKIT_URL }}" \
+            --set-env-vars "LIVEKIT_API_KEY=${{ secrets.LIVEKIT_API_KEY }}" \
+            --set-env-vars "LIVEKIT_API_SECRET=${{ secrets.LIVEKIT_API_SECRET }}" \
+            --set-env-vars "SIP_OUTBOUND_TRUNK_ID=${{ secrets.SIP_OUTBOUND_TRUNK_ID }}"
+
+      - name: Show deployment URL
+        run: |
+          URL=$(gcloud run services describe ${{ env.MCP_SERVICE }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+          echo "MCP Server URL: $URL"
+          echo "To use with Claude Code:"
+          echo "  claude mcp add --transport http paty-control $URL/mcp"
