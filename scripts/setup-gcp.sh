@@ -62,6 +62,14 @@ for ROLE in cloudfunctions.developer run.developer artifactregistry.writer; do
     --role="roles/$ROLE"
 done
 
+# Grant deployer SA permission to act as the default Compute Engine SA only (not project-wide)
+# TODO: Migrate to runtime SA
+DEFAULT_COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+gcloud iam service-accounts add-iam-policy-binding "${DEFAULT_COMPUTE_SA}" \
+    --project="${PROJECT_ID}" \
+    --role="roles/iam.serviceAccountUser" \
+    --member="serviceAccount:${SA_EMAIL}"
+
 POOL_ID="github-actions-pool"
 
 # Check if the Workload Identity Pool exists
@@ -141,7 +149,7 @@ echo "Setup complete! Add these secrets to GitHub:"
 echo "============================================"
 echo ""
 echo "GCP_PROJECT_ID: $PROJECT_ID"
-echo "WIF_PROVIDER: $PROVIDER_ID"
+echo "WIF_PROVIDER: projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/providers/${PROVIDER_ID}"
 echo "WIF_SERVICE_ACCOUNT: $SA_EMAIL"
 echo ""
 echo "Optional variables:"
