@@ -61,6 +61,7 @@ jobs:
             --image ${{ env.IMAGE }} \
             --region ${{ env.REGION }} \
             --platform managed \
+            --port 8081 \
             --no-allow-unauthenticated \
             --min-instances 1 \
             --max-instances 10 \
