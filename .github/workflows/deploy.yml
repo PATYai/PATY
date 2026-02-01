@@ -64,7 +64,7 @@ jobs:
             --no-allow-unauthenticated \
             --min-instances 1 \
             --max-instances 10 \
-            --memory 2Gi \
+            --memory 3Gi \
             --cpu 2 \
             --timeout 3600 \
             --set-env-vars "LIVEKIT_URL=${{ secrets.LIVEKIT_URL }}" \
