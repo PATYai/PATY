@@ -1,11 +1,52 @@
+# outbound/providers/telnyx.py
+"""
+Telnyx Outbound Provider
+
+This module implements the OutboundProvider interface for Telnyx.
+It uses Telnyx's Call Control API to initiate calls and establishes media streaming
+via WebSocket.
+"""
+import uuid
+import base64
+import aiohttp
+from ..protocol import OutboundProvider, CallRequest, CallSession
+from .websocket_base import WebSocketConnectionCoordinator
+from pipecat.transports.base_transport import BaseTransport
+from pipecat.transports.network.fastapi_websocket import FastAPIWebsocketTransport, FastAPIWebsocketParams
+from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.serializers.telnyx import TelnyxFrameSerializer
+
 class TelnyxOutboundProvider(OutboundProvider):
+    """
+    Provider implementation for Telnyx.
+    
+    Initiates outbound calls using the Telnyx V2 Call Control API and handles
+    bidirectional audio streaming over WebSocket.
+    """
+    
     def __init__(self, config: dict, coordinator: WebSocketConnectionCoordinator):
+        """
+        Initialize the Telnyx provider.
+        
+        Args:
+            config: Configuration containing 'api_key', 'webhook_base_url', and optional 'caller_id'.
+            coordinator: Shared WebSocket coordinator to match API calls with incoming socket connections.
+        """
         self.api_key = config["api_key"]
         self.webhook_base_url = config["webhook_base_url"]
         self.default_caller_id = config.get("caller_id")
         self.coordinator = coordinator
     
     async def initiate_call(self, request: CallRequest) -> CallSession:
+        """
+        Initiate a call via Telnyx Call Control API.
+        
+        Args:
+            request: The call request details.
+            
+        Returns:
+            CallSession: Session containing the call control ID.
+        """
         call_id = str(uuid.uuid4())
         
         # Register that we expect a WebSocket connection
@@ -42,6 +83,15 @@ class TelnyxOutboundProvider(OutboundProvider):
         )
     
     async def get_transport(self, session: CallSession) -> BaseTransport:
+        """
+        Wait for and retrieve the WebSocket transport for the call.
+        
+        Args:
+            session: The active call session.
+            
+        Returns:
+            BaseTransport: The connected FastAPIWebsocketTransport.
+        """
         # Wait for Telnyx to connect to our WebSocket
         websocket = await self.coordinator.expect_connection(session.id)
         
@@ -54,4 +104,15 @@ class TelnyxOutboundProvider(OutboundProvider):
                 serializer=TelnyxFrameSerializer(),
             )
         )
-        return transports
+        return transport
+
+    async def hangup(self, session: CallSession) -> None:
+        """
+        Terminate the Telnyx call.
+        
+        Args:
+            session: The session to terminate.
+        """
+        # Implementation dependent on how we want to hang up (e.g. API call)
+        # Leaving as placeholder since original code didn't implement it
+        pass
