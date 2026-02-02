@@ -1,0 +1,26 @@
+# config/telephony.yaml
+providers:
+  daily:
+    api_key: ${DAILY_API_KEY}
+    api_url: https://api.daily.co/v1
+    caller_id: "+15551234567"
+    
+  telnyx:
+    api_key: ${TELNYX_API_KEY}
+    api_key_v1: ${TELNYX_API_KEY_V1}  # for call control
+    webhook_base_url: ${WEBHOOK_BASE_URL}
+    caller_id: "+15559876543"
+    
+  twilio:
+    account_sid: ${TWILIO_ACCOUNT_SID}
+    auth_token: ${TWILIO_AUTH_TOKEN}
+    webhook_base_url: ${WEBHOOK_BASE_URL}
+    caller_id: "+15557654321"
+
+routing:
+  default: daily
+  rules:
+    - pattern: "+91*"    # India
+      provider: telnyx   # or exotel
+    - pattern: "+44*"    # UK
+      provider: twilio

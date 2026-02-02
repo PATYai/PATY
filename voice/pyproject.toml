@@ -12,7 +12,11 @@ dependencies = [
     "livekit-agents[silero,turn-detector]~=1.3",
     "livekit-plugins-noise-cancellation~=0.2",
     "python-dotenv",
+    "pipecat-outbound",
 ]
+
+[tool.uv.sources]
+pipecat-outbound = { path = "../", editable = true }
 
 [dependency-groups]
 dev = [
