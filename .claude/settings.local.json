@@ -6,5 +6,9 @@
       "Bash(uv run ruff:*)",
       "Bash(uv lock:*)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "paty-control",
+    "livekit-docs"
+  ]
 }

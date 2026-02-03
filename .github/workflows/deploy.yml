@@ -129,7 +129,8 @@ jobs:
             --set-env-vars "LIVEKIT_URL=${{ secrets.LIVEKIT_URL }}" \
             --set-env-vars "LIVEKIT_API_KEY=${{ secrets.LIVEKIT_API_KEY }}" \
             --set-env-vars "LIVEKIT_API_SECRET=${{ secrets.LIVEKIT_API_SECRET }}" \
-            --set-env-vars "SIP_OUTBOUND_TRUNK_ID=${{ secrets.SIP_OUTBOUND_TRUNK_ID }}"
+            --set-env-vars "SIP_OUTBOUND_TRUNK_ID=${{ secrets.SIP_OUTBOUND_TRUNK_ID }}" \
+            --set-env-vars "MCP_AUTH_DISABLED=true"
 
       - name: Show deployment URL
         run: |
