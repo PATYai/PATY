@@ -1,29 +1,59 @@
 """
 PATY MCP Server - Control the PATY voice agent via MCP tools.
 
-This server exposes tools for making outbound calls, managing active calls,
-and updating participant configuration.
+This server exposes tools for making outbound calls and managing active calls.
+
+Authentication:
+    Set MCP_API_KEY environment variable to require Bearer token authentication.
+    If not set, the server runs without authentication (not recommended for production).
 """
 
 import json
 import os
 import uuid
-from pathlib import Path
 
 from dotenv import load_dotenv
 from fastmcp import FastMCP
+from fastmcp.server.auth import AccessToken, TokenVerifier
 from livekit import api
+
+
+class ApiKeyVerifier(TokenVerifier):
+    """Simple API key verifier that validates against an environment variable."""
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        if token == self.api_key:
+            return AccessToken(
+                token=token,
+                client_id="api-key-client",
+                scopes=["all"],
+            )
+        return None
+
 
 # Load environment from root .env.local
 load_dotenv("../.env.local")
 load_dotenv(".env.local")
 
-# Path to participant.json (at project root)
-PARTICIPANT_CONFIG_PATH = Path(
-    os.environ.get("PARTICIPANT_CONFIG_PATH", "../participant.json")
-)
+# Configure authentication (required by default)
+# Set MCP_AUTH_DISABLED=true to explicitly disable auth (e.g., for Cloud Run with IAM)
+auth_disabled = os.environ.get("MCP_AUTH_DISABLED", "").lower() == "true"
+api_key = os.environ.get("MCP_API_KEY")
 
-mcp = FastMCP("PATY Control")
+if auth_disabled:
+    auth_provider = None
+elif api_key:
+    auth_provider = ApiKeyVerifier(api_key)
+else:
+    raise RuntimeError(
+        "MCP_API_KEY must be set for authentication. "
+        "Set MCP_AUTH_DISABLED=true to explicitly disable auth."
+    )
+
+mcp = FastMCP("PATY Control", auth=auth_provider)
 
 
 def get_livekit_api() -> api.LiveKitAPI:
@@ -31,23 +61,10 @@ def get_livekit_api() -> api.LiveKitAPI:
     return api.LiveKitAPI()
 
 
-def load_participant_config() -> dict:
-    """Load the current participant configuration."""
-    if PARTICIPANT_CONFIG_PATH.exists():
-        with open(PARTICIPANT_CONFIG_PATH) as f:
-            return json.load(f)
-    return {}
-
-
-def save_participant_config(config: dict) -> None:
-    """Save the participant configuration."""
-    with open(PARTICIPANT_CONFIG_PATH, "w") as f:
-        json.dump(config, f, indent=2)
-
-
 @mcp.tool()
 async def make_call(
     phone_number: str,
+    sip_trunk_id: str | None = None,
     caller_id: str | None = None,
     room_name: str | None = None,
     participant_name: str | None = None,
@@ -57,7 +74,8 @@ async def make_call(
 
     Args:
         phone_number: The phone number to call (E.164 format, e.g., +14155551234)
-        caller_id: Optional caller ID to display (must be a verified number on your SIP trunk)
+        sip_trunk_id: The SIP trunk ID to use (falls back to SIP_OUTBOUND_TRUNK_ID env var)
+        caller_id: The caller ID to display (must be a verified number on your SIP trunk)
         room_name: Optional room name for the call (auto-generated if not provided)
         participant_name: Optional display name for the participant
 
@@ -67,28 +85,24 @@ async def make_call(
     lkapi = get_livekit_api()
 
     try:
-        # Load default config for SIP trunk ID and caller ID
-        config = load_participant_config()
-        sip_trunk_id = config.get("sip_trunk_id") or os.getenv("SIP_OUTBOUND_TRUNK_ID")
+        # Use provided trunk ID or fall back to environment variable
+        effective_trunk_id = sip_trunk_id or os.getenv("SIP_OUTBOUND_TRUNK_ID")
 
-        if not sip_trunk_id:
+        if not effective_trunk_id:
             return {
                 "success": False,
-                "error": "No SIP trunk ID configured. Set sip_trunk_id in participant.json or SIP_OUTBOUND_TRUNK_ID environment variable.",
+                "error": "No SIP trunk ID provided. Pass sip_trunk_id or set SIP_OUTBOUND_TRUNK_ID environment variable.",
             }
 
         # Generate room name if not provided
         if not room_name:
             room_name = f"paty-call-{uuid.uuid4().hex[:8]}"
 
-        # Use provided caller_id or fall back to config
-        effective_caller_id = caller_id or config.get("sip_number")
-
         # Build metadata for the agent
         metadata = {
-            "sip_trunk_id": sip_trunk_id,
+            "sip_trunk_id": effective_trunk_id,
             "sip_call_to": phone_number,
-            "sip_number": effective_caller_id,
+            "sip_number": caller_id,
             "room_name": room_name,
             "participant_identity": phone_number,
             "participant_name": participant_name or "",
@@ -107,7 +121,7 @@ async def make_call(
             "success": True,
             "room_name": room_name,
             "phone_number": phone_number,
-            "caller_id": effective_caller_id,
+            "caller_id": caller_id,
             "dispatch_id": dispatch.dispatch_id,
             "message": f"Call initiated to {phone_number}",
         }
@@ -246,68 +260,6 @@ async def get_call_status(room_name: str) -> dict:
         }
     finally:
         await lkapi.aclose()
-
-
-@mcp.tool()
-async def update_participant_config(
-    sip_number: str | None = None,
-    sip_trunk_id: str | None = None,
-    default_room_name: str | None = None,
-) -> dict:
-    """
-    Update the participant.json configuration.
-
-    Args:
-        sip_number: The caller ID phone number to use for outbound calls
-        sip_trunk_id: The SIP trunk ID to use for outbound calls
-        default_room_name: The default room name for calls
-
-    Returns:
-        A dictionary containing the updated configuration
-    """
-    try:
-        config = load_participant_config()
-
-        if sip_number is not None:
-            config["sip_number"] = sip_number
-        if sip_trunk_id is not None:
-            config["sip_trunk_id"] = sip_trunk_id
-        if default_room_name is not None:
-            config["room_name"] = default_room_name
-
-        save_participant_config(config)
-
-        return {
-            "success": True,
-            "config": config,
-            "message": "Configuration updated successfully",
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-        }
-
-
-@mcp.tool()
-async def get_participant_config() -> dict:
-    """
-    Get the current participant.json configuration.
-
-    Returns:
-        A dictionary containing the current configuration
-    """
-    try:
-        config = load_participant_config()
-        return {
-            "success": True,
-            "config": config,
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-        }
 
 
 if __name__ == "__main__":

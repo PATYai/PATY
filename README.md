@@ -176,10 +176,14 @@ gcloud run deploy paty-mcp --source .
 
 ### Using the Deployed MCP Server
 
-Once deployed, connect to the MCP server:
+Once deployed, run the setup script to generate a project-local `.mcp.json` config:
 ```bash
-claude mcp add --transport http paty-control https://paty-mcp-xxxxx.run.app/mcp
+./scripts/get-mcp-config.sh
 ```
+
+This creates a `.mcp.json` file in the project root with both the `paty-control` and `livekit-docs` MCP servers configured. Restart your coding agent to pick up the new configuration.
+
+The `.mcp.json` file is gitignored since it contains your deployment-specific URL.
 
 ## License
 
