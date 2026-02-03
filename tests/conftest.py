@@ -1,7 +1,7 @@
-import pytest
-import asyncio
 import sys
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock
+
+import pytest
 
 # Mock pipecat modules BEFORE they are imported by any code
 mock_pipecat = MagicMock()
@@ -63,9 +63,9 @@ def mock_dail_transport(monkeypatch):
     mock_transport = MagicMock()
     # Ensure event_handler is a decorator that returns the function
     mock_transport.event_handler = MagicMock(side_effect=lambda x: lambda f: f)
-    
-    # Mock the class 
+
+    # Mock the class
     mock_cls = MagicMock(return_value=mock_transport)
     monkeypatch.setattr("pipecat_outbound.providers.daily.DailyTransport", mock_cls)
-    
+
     return mock_transport

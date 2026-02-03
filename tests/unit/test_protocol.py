@@ -1,5 +1,5 @@
-import pytest
 from pipecat_outbound.protocol import CallRequest, CallSession
+
 
 def test_call_request_defaults():
     req = CallRequest(to="+15551234")
