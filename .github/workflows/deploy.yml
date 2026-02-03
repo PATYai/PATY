@@ -67,7 +67,9 @@ jobs:
             --max-instances 10 \
             --memory 3Gi \
             --cpu 2 \
+            --cpu-boost \
             --timeout 3600 \
+            --startup-probe=tcpSocket.port=8081,initialDelaySeconds=0,timeoutSeconds=240,periodSeconds=10,failureThreshold=30 \
             --set-env-vars "LIVEKIT_URL=${{ secrets.LIVEKIT_URL }}" \
             --set-env-vars "LIVEKIT_API_KEY=${{ secrets.LIVEKIT_API_KEY }}" \
             --set-env-vars "LIVEKIT_API_SECRET=${{ secrets.LIVEKIT_API_SECRET }}" \
