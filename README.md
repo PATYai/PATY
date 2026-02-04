@@ -1,14 +1,11 @@
-<a href="https://livekit.io/">
-  <img src="./.github/assets/livekit-mark.png" alt="LiveKit logo" width="100" height="100">
-</a>
 
-# PATY - Please And Thank You
-
+```text
 ┌───┐   ██████   █████   ██████   ██. ██
 │ • │   █    █   █   █     ██     ██████
 │ • │   ██████   █████     ██       ██
 └───┘   █        █   █     ██       ██
         █        █   █     ██       ██
+```
 
 ## Project Structure
 
