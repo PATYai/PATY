@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-
+# TODO: Use hardened images
 # Use the official UV Python base image with Python 3.13 on Debian Bookworm
 ARG PYTHON_VERSION=3.13
 FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm-slim AS base
