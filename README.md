@@ -1,10 +1,11 @@
-<a href="https://livekit.io/">
-  <img src="./.github/assets/livekit-mark.png" alt="LiveKit logo" width="100" height="100">
-</a>
 
-# PATY - Please And Thank You
-
-A polite voice AI agent built with [LiveKit Agents for Python](https://github.com/livekit/agents) and [LiveKit Cloud](https://cloud.livekit.io/).
+```text
+┌───┐   ██████   █████   ██████   ██. ██
+│ • │   █    █   █   █     ██     ██████
+│ • │   ██████   █████     ██       ██
+└───┘   █        █   █     ██       ██
+        █        █   █     ██       ██
+```
 
 ## Project Structure
 
