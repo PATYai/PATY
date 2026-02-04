@@ -1,0 +1,50 @@
+name: Pipecat Outbound Tests
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'pipecat_outbound/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'pipecat_outbound/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v1
+      with:
+        version: "latest"
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+        
+    - name: Install dependencies
+      run: uv sync --all-extras
+        
+    - name: Lint with Ruff
+      run: uv run ruff check .
+        
+    - name: Run Unit Tests
+      env:
+        PYTHONPATH: .
+      run: uv run pytest tests/unit
+        
+    - name: Run Smoke Tests (Optional)
+      if: env.DAILY_API_KEY != ''
+      env:
+        DAILY_API_KEY: ${{ secrets.DAILY_API_KEY }}
+        PYTHONPATH: .
+      run: uv run pytest tests/smoke
