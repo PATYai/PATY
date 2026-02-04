@@ -4,7 +4,11 @@
 
 # PATY - Please And Thank You
 
-A polite voice AI agent built with [LiveKit Agents for Python](https://github.com/livekit/agents) and [LiveKit Cloud](https://cloud.livekit.io/).
+┌───┐   ██████   █████   ██████   ██. ██
+│ • │   █    █   █   █     ██     ██████
+│ • │   ██████   █████     ██       ██
+└───┘   █        █   █     ██       ██
+        █        █   █     ██       ██
 
 ## Project Structure
 
