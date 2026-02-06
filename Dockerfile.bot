@@ -1,11 +1,21 @@
 # syntax=docker/dockerfile:1
-# TODO: Use hardened images
-# Use the official UV Python base image with Python 3.13 on Debian Bookworm
+# Bot service Dockerfile - builds from project root context
 ARG PYTHON_VERSION=3.13
 FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm-slim AS base
 
 # Keeps Python from buffering stdout and stderr
 ENV PYTHONUNBUFFERED=1
+
+# Install system dependencies required by daily-python for audio processing
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libopenblas-dev \
+        libresample1 \
+        libresample-dev \
+        libgl1 \
+        libglib2.0-0 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create a non-privileged user
 ARG UID=10001
@@ -20,15 +30,15 @@ RUN adduser \
 # Create working directory
 WORKDIR /app
 
-# Copy just the dependency files first for caching
+# Copy dependency files first for caching
 COPY pyproject.toml uv.lock* ./
-RUN mkdir -p src
+RUN touch README.md
 
 # Install dependencies
 RUN uv sync --locked || uv sync
 
-# Copy application files
-COPY . .
+# Copy application code
+COPY pipecat_outbound/ pipecat_outbound/
 
 # Change ownership to non-privileged user
 RUN chown -R appuser:appuser /app
@@ -39,6 +49,4 @@ USER appuser
 # Fly.io sets PORT environment variable
 ENV PORT=8080
 
-# Run the MCP server
-# FastMCP uses streamable-http transport
-CMD ["uv", "run", "python", "src/server.py"]
+CMD ["uv", "run", "uvicorn", "pipecat_outbound.server:app", "--host", "0.0.0.0", "--port", "8080"]

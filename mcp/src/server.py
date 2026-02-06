@@ -1,21 +1,22 @@
 """
 PATY MCP Server - Control the PATY voice agent via MCP tools.
 
-This server exposes tools for making outbound calls and managing active calls.
+This server exposes tools for making outbound calls using Daily and Pipecat.
+The bot runs as a separate Fly.io service, triggered via HTTP POST.
 
 Authentication:
     Set MCP_API_KEY environment variable to require Bearer token authentication.
     If not set, the server runs without authentication (not recommended for production).
 """
 
-import json
 import os
+import time
 import uuid
 
+import aiohttp
 from dotenv import load_dotenv
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
-from livekit import api
 
 
 class ApiKeyVerifier(TokenVerifier):
@@ -55,75 +56,207 @@ else:
 
 mcp = FastMCP("PATY Control", auth=auth_provider)
 
+# Bot service URL (required for making calls)
+BOT_SERVICE_URL = os.environ.get("BOT_SERVICE_URL", "")
 
-def get_livekit_api() -> api.LiveKitAPI:
-    """Create a LiveKit API client."""
-    return api.LiveKitAPI()
+
+# Bot service auth key (for service-to-service auth)
+BOT_API_KEY = os.environ.get("BOT_API_KEY", "")
+
+
+async def create_daily_room(enable_dialout: bool = True) -> dict:
+    """Create a Daily room configured for PSTN dial-out.
+
+    Args:
+        enable_dialout: If True, configure room for PSTN dial-out (requires paid plan).
+                       If False, create a basic room for testing.
+
+    Returns:
+        dict with room_name, room_url, token, and dialout_enabled flag
+    """
+    daily_api_key = os.getenv("DAILY_API_KEY")
+    if not daily_api_key:
+        raise ValueError("DAILY_API_KEY environment variable not set")
+
+    async with aiohttp.ClientSession() as session:
+        # Build room properties
+        room_properties: dict = {}
+
+        if enable_dialout:
+            room_properties["enable_dialout"] = True
+
+        # Add expiry
+        room_properties["exp"] = int(time.time()) + 3600  # 1 hour expiry
+
+        # Create room
+        async with session.post(
+            "https://api.daily.co/v1/rooms",
+            headers={"Authorization": f"Bearer {daily_api_key}"},
+            json={"properties": room_properties} if room_properties else {},
+        ) as resp:
+            if resp.status != 200:
+                error = await resp.text()
+                # If dial-out fails due to plan limitations, try without it
+                error_lower = error.lower()
+                if enable_dialout and any(
+                    x in error_lower for x in ["sip", "dialout", "plan", "display_name"]
+                ):
+                    return await create_daily_room(enable_dialout=False)
+                raise ValueError(f"Failed to create Daily room: {error}")
+            room = await resp.json()
+
+        # Get a token for the room
+        async with session.post(
+            "https://api.daily.co/v1/meeting-tokens",
+            headers={"Authorization": f"Bearer {daily_api_key}"},
+            json={"properties": {"room_name": room["name"], "is_owner": True}},
+        ) as resp:
+            if resp.status != 200:
+                error = await resp.text()
+                raise ValueError(f"Failed to create Daily token: {error}")
+            token_data = await resp.json()
+
+    return {
+        "room_name": room["name"],
+        "room_url": room["url"],
+        "token": token_data["token"],
+        "dialout_enabled": enable_dialout,
+    }
+
+
+async def delete_daily_room(room_name: str) -> None:
+    """Delete a Daily room."""
+    daily_api_key = os.getenv("DAILY_API_KEY")
+    if not daily_api_key:
+        raise ValueError("DAILY_API_KEY environment variable not set")
+
+    async with (
+        aiohttp.ClientSession() as session,
+        session.delete(
+            f"https://api.daily.co/v1/rooms/{room_name}",
+            headers={"Authorization": f"Bearer {daily_api_key}"},
+        ) as resp,
+    ):
+        if resp.status not in (200, 204, 404):
+            error = await resp.text()
+            raise ValueError(f"Failed to delete Daily room: {error}")
+
+
+async def list_daily_rooms() -> list[dict]:
+    """List active Daily rooms."""
+    daily_api_key = os.getenv("DAILY_API_KEY")
+    if not daily_api_key:
+        raise ValueError("DAILY_API_KEY environment variable not set")
+
+    async with (
+        aiohttp.ClientSession() as session,
+        session.get(
+            "https://api.daily.co/v1/rooms",
+            headers={"Authorization": f"Bearer {daily_api_key}"},
+        ) as resp,
+    ):
+        if resp.status != 200:
+            error = await resp.text()
+            raise ValueError(f"Failed to list Daily rooms: {error}")
+        data = await resp.json()
+        return data.get("data", [])
+
+
+async def get_daily_room(room_name: str) -> dict | None:
+    """Get a specific Daily room."""
+    daily_api_key = os.getenv("DAILY_API_KEY")
+    if not daily_api_key:
+        raise ValueError("DAILY_API_KEY environment variable not set")
+
+    async with (
+        aiohttp.ClientSession() as session,
+        session.get(
+            f"https://api.daily.co/v1/rooms/{room_name}",
+            headers={"Authorization": f"Bearer {daily_api_key}"},
+        ) as resp,
+    ):
+        if resp.status == 404:
+            return None
+        if resp.status != 200:
+            error = await resp.text()
+            raise ValueError(f"Failed to get Daily room: {error}")
+        return await resp.json()
 
 
 @mcp.tool()
 async def make_call(
     phone_number: str,
-    sip_trunk_id: str | None = None,
     caller_id: str | None = None,
     room_name: str | None = None,
-    participant_name: str | None = None,
 ) -> dict:
     """
-    Initiate an outbound call to the specified phone number.
+    Initiate an outbound call to the specified phone number using Daily.
 
     Args:
         phone_number: The phone number to call (E.164 format, e.g., +14155551234)
-        sip_trunk_id: The SIP trunk ID to use (falls back to SIP_OUTBOUND_TRUNK_ID env var)
-        caller_id: The caller ID to display (must be a verified number on your SIP trunk)
+        caller_id: The caller ID to display (must be a verified number on your Daily account)
         room_name: Optional room name for the call (auto-generated if not provided)
-        participant_name: Optional display name for the participant
 
     Returns:
-        A dictionary containing the dispatch details and room information
+        A dictionary containing the call details and room information
     """
-    lkapi = get_livekit_api()
-
     try:
-        # Use provided trunk ID or fall back to environment variable
-        effective_trunk_id = sip_trunk_id or os.getenv("SIP_OUTBOUND_TRUNK_ID")
+        if not BOT_SERVICE_URL:
+            raise ValueError("BOT_SERVICE_URL environment variable not set")
 
-        if not effective_trunk_id:
-            return {
-                "success": False,
-                "error": "No SIP trunk ID provided. Pass sip_trunk_id or set SIP_OUTBOUND_TRUNK_ID environment variable.",
-            }
+        # Create Daily room
+        room_info = await create_daily_room()
+        dialout_enabled = room_info.get("dialout_enabled", False)
 
-        # Generate room name if not provided
-        if not room_name:
-            room_name = f"paty-call-{uuid.uuid4().hex[:8]}"
+        # Generate call ID
+        call_id = room_name or f"paty-call-{uuid.uuid4().hex[:8]}"
 
-        # Build metadata for the agent
-        metadata = {
-            "sip_trunk_id": effective_trunk_id,
-            "sip_call_to": phone_number,
-            "sip_number": caller_id,
-            "room_name": room_name,
-            "participant_identity": phone_number,
-            "participant_name": participant_name or "",
+        # Trigger bot service via HTTP POST
+        headers = {"Content-Type": "application/json"}
+        if BOT_API_KEY:
+            headers["Authorization"] = f"Bearer {BOT_API_KEY}"
+
+        payload = {
+            "room_url": room_info["room_url"],
+            "token": room_info["token"],
+            "phone_number": phone_number,
+            "caller_id": caller_id,
+            "room_name": room_info["room_name"],
         }
 
-        # Dispatch the voice agent to handle the call
-        dispatch = await lkapi.agent_dispatch.create_dispatch(
-            api.CreateAgentDispatchRequest(
-                agent_name="paty-voice",
-                room=room_name,
-                metadata=json.dumps(metadata),
+        # Use a long timeout since the bot blocks until the call ends
+        timeout = aiohttp.ClientTimeout(total=3600)
+        async with (
+            aiohttp.ClientSession(timeout=timeout) as session,
+            session.post(
+                f"{BOT_SERVICE_URL}/start",
+                headers=headers,
+                json=payload,
+            ) as resp,
+        ):
+            if resp.status != 200:
+                error = await resp.text()
+                raise ValueError(f"Failed to start bot: {error}")
+
+        # Build response message
+        if dialout_enabled:
+            message = f"Call initiated to {phone_number}"
+        else:
+            message = (
+                f"Room created but PSTN dial-out not available on your Daily plan. "
+                f"Bot started in room {room_info['room_name']}. "
+                f"Upgrade your Daily plan to enable outbound phone calls."
             )
-        )
 
         return {
             "success": True,
-            "room_name": room_name,
+            "call_id": call_id,
+            "room_name": room_info["room_name"],
+            "room_url": room_info["room_url"],
             "phone_number": phone_number,
             "caller_id": caller_id,
-            "dispatch_id": dispatch.dispatch_id,
-            "message": f"Call initiated to {phone_number}",
+            "dialout_enabled": dialout_enabled,
+            "message": message,
         }
 
     except Exception as e:
@@ -131,8 +264,6 @@ async def make_call(
             "success": False,
             "error": str(e),
         }
-    finally:
-        await lkapi.aclose()
 
 
 @mcp.tool()
@@ -146,10 +277,9 @@ async def end_call(room_name: str) -> dict:
     Returns:
         A dictionary indicating success or failure
     """
-    lkapi = get_livekit_api()
-
     try:
-        await lkapi.room.delete_room(api.DeleteRoomRequest(room=room_name))
+        await delete_daily_room(room_name)
+
         return {
             "success": True,
             "message": f"Call in room '{room_name}' has been ended",
@@ -159,8 +289,6 @@ async def end_call(room_name: str) -> dict:
             "success": False,
             "error": str(e),
         }
-    finally:
-        await lkapi.aclose()
 
 
 @mcp.tool()
@@ -171,33 +299,29 @@ async def list_rooms() -> dict:
     Returns:
         A dictionary containing the list of active rooms with their details
     """
-    lkapi = get_livekit_api()
-
     try:
-        response = await lkapi.room.list_rooms(api.ListRoomsRequest())
-        rooms = []
-        for room in response.rooms:
-            rooms.append(
-                {
-                    "name": room.name,
-                    "sid": room.sid,
-                    "num_participants": room.num_participants,
-                    "creation_time": room.creation_time,
-                    "metadata": room.metadata,
-                }
-            )
+        rooms = await list_daily_rooms()
+
+        paty_rooms = []
+        for room in rooms:
+            room_info = {
+                "name": room.get("name"),
+                "url": room.get("url"),
+                "created_at": room.get("created_at"),
+                "config": room.get("config", {}),
+            }
+            paty_rooms.append(room_info)
+
         return {
             "success": True,
-            "rooms": rooms,
-            "count": len(rooms),
+            "rooms": paty_rooms,
+            "count": len(paty_rooms),
         }
     except Exception as e:
         return {
             "success": False,
             "error": str(e),
         }
-    finally:
-        await lkapi.aclose()
 
 
 @mcp.tool()
@@ -209,60 +333,35 @@ async def get_call_status(room_name: str) -> dict:
         room_name: The name of the room to check
 
     Returns:
-        A dictionary containing the room status and participant information
+        A dictionary containing the room status and call information
     """
-    lkapi = get_livekit_api()
-
     try:
-        # List rooms and find the matching one
-        response = await lkapi.room.list_rooms(api.ListRoomsRequest(names=[room_name]))
+        room = await get_daily_room(room_name)
 
-        if not response.rooms:
+        if not room:
             return {
                 "success": False,
                 "error": f"Room '{room_name}' not found",
             }
 
-        room = response.rooms[0]
-
-        # Get participants in the room
-        participants_response = await lkapi.room.list_participants(
-            api.ListParticipantsRequest(room=room_name)
-        )
-
-        participants = []
-        for p in participants_response.participants:
-            participants.append(
-                {
-                    "identity": p.identity,
-                    "name": p.name,
-                    "state": str(p.state),
-                    "joined_at": p.joined_at,
-                    "metadata": p.metadata,
-                }
-            )
-
         return {
             "success": True,
             "room": {
-                "name": room.name,
-                "sid": room.sid,
-                "num_participants": room.num_participants,
-                "creation_time": room.creation_time,
-                "metadata": room.metadata,
+                "name": room.get("name"),
+                "url": room.get("url"),
+                "created_at": room.get("created_at"),
+                "config": room.get("config", {}),
             },
-            "participants": participants,
         }
+
     except Exception as e:
         return {
             "success": False,
             "error": str(e),
         }
-    finally:
-        await lkapi.aclose()
 
 
 if __name__ == "__main__":
-    # Use PORT env var for Cloud Run compatibility
+    # Use PORT env var for Fly.io compatibility
     port = int(os.environ.get("PORT", 8080))
     mcp.run(transport="streamable-http", host="0.0.0.0", port=port)

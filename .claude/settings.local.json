@@ -5,7 +5,19 @@
       "mcp__livekit-docs__get_python_agent_example",
       "Bash(uv run ruff:*)",
       "Bash(uv lock:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "WebSearch",
+      "Bash(uv sync:*)",
+      "Bash(curl:*)",
+      "Bash(gcloud logging read:*)",
+      "WebFetch(domain:reference-server.pipecat.ai)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.daily.co)",
+      "WebFetch(domain:docs.pipecat.ai)",
+      "Bash(./scripts/deploy-bot.sh:*)",
+      "mcp__paty-control__make_call",
+      "Bash(gcloud run services logs read:*)",
+      "Bash(gh run view:*)"
     ]
   },
   "enabledMcpjsonServers": [

@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-# Deploy MCP server to Cloud Run
-# Usage: ./scripts/deploy-mcp.sh
+# Deploy bot service to Cloud Run
+# Usage: ./scripts/deploy-bot.sh
 
 # Configuration
 REGION="${GCP_REGION:-us-central1}"
-SERVICE="paty-mcp"
+SERVICE="paty-bot"
 PROJECT_ID="${GCP_PROJECT_ID:-$(gcloud config get-value project)}"
 
 if [ -z "$PROJECT_ID" ]; then
@@ -21,7 +21,7 @@ if [ -f ".env.local" ]; then
 fi
 
 # Check required env vars
-for var in DAILY_API_KEY BOT_SERVICE_URL; do
+for var in DAILY_API_KEY OPENAI_API_KEY CARTESIA_API_KEY ASSEMBLYAI_API_KEY; do
   if [ -z "${!var}" ]; then
     echo "Error: $var is not set"
     exit 1
@@ -30,12 +30,12 @@ done
 
 echo "Deploying $SERVICE to $PROJECT_ID in $REGION..."
 
-# Build and push image
+# Build and push image (uses project root context with Dockerfile.bot)
 TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD)}"
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/paty/${SERVICE}:${TAG}"
 
 echo "Building image: $IMAGE"
-docker build --platform linux/amd64 -t "$IMAGE" mcp/
+docker build --platform linux/amd64 -t "$IMAGE" -f Dockerfile.bot .
 
 echo "Configuring Docker for Artifact Registry..."
 gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
@@ -48,21 +48,20 @@ gcloud run deploy "$SERVICE" \
   --image "$IMAGE" \
   --region "$REGION" \
   --platform managed \
-  --allow-unauthenticated \
-  --no-invoker-iam-check \
+  --no-allow-unauthenticated \
+  --no-cpu-throttling \
   --min-instances 0 \
-  --max-instances 5 \
-  --memory 512Mi \
-  --cpu 1 \
-  --timeout 300 \
+  --max-instances 10 \
+  --memory 2Gi \
+  --cpu 2 \
+  --timeout 3600 \
+  --concurrency 1 \
   --set-env-vars "DAILY_API_KEY=${DAILY_API_KEY}" \
-  --set-env-vars "BOT_SERVICE_URL=${BOT_SERVICE_URL}" \
-  --set-env-vars "MCP_AUTH_DISABLED=true"
+  --set-env-vars "OPENAI_API_KEY=${OPENAI_API_KEY}" \
+  --set-env-vars "CARTESIA_API_KEY=${CARTESIA_API_KEY}" \
+  --set-env-vars "ASSEMBLYAI_API_KEY=${ASSEMBLYAI_API_KEY}"
 
 echo ""
 echo "Deployment complete!"
 URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --format 'value(status.url)')
-echo "MCP Server URL: $URL"
-echo ""
-echo "To use with Claude Code:"
-echo "  claude mcp add --transport http paty-control $URL/mcp"
+echo "Bot Service URL: $URL"
