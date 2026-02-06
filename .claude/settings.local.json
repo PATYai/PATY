@@ -11,7 +11,11 @@
       "Bash(uv sync:*)",
       "Bash(curl:*)",
       "Bash(gcloud logging read:*)",
-      "WebFetch(domain:reference-server.pipecat.ai)"
+      "WebFetch(domain:reference-server.pipecat.ai)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.daily.co)",
+      "WebFetch(domain:docs.pipecat.ai)",
+      "Bash(./scripts/deploy-bot.sh:*)"
     ]
   },
   "enabledMcpjsonServers": [

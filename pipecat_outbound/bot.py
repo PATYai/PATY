@@ -17,7 +17,11 @@ from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
-from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
+from pipecat.processors.aggregators.llm_context import LLMContext
+from pipecat.processors.aggregators.llm_response_universal import (
+    LLMContextAggregatorPair,
+    LLMUserAggregatorParams,
+)
 from pipecat.services.assemblyai.stt import AssemblyAISTTService
 from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.openai.llm import OpenAILLMService
@@ -116,7 +120,6 @@ async def run_bot(
             api_key=os.getenv("DAILY_API_KEY"),
             audio_in_enabled=True,
             audio_out_enabled=True,
-            vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
         ),
     )
 
@@ -132,24 +135,30 @@ async def run_bot(
 
     # Initialize LLM context with PATY system prompt
     messages = [{"role": "system", "content": PATY_SYSTEM_PROMPT}]
-    context = OpenAILLMContext(messages)
-    context_aggregator = llm.create_context_aggregator(context)
+    context = LLMContext(messages)
+    user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
+        context,
+        user_params=LLMUserAggregatorParams(
+            vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.8)),
+        ),
+    )
 
     pipeline = Pipeline(
         [
             transport.input(),
             stt,
-            context_aggregator.user(),
+            user_aggregator,
             llm,
             tts,
             transport.output(),
-            context_aggregator.assistant(),
+            assistant_aggregator,
         ]
     )
 
     task = PipelineTask(
         pipeline,
         params=PipelineParams(
+            allow_interruptions=False,  # Disable interruptions to avoid PSTN echo triggering VAD
             enable_metrics=True,
             enable_usage_metrics=True,
             audio_in_sample_rate=8000,  # Telephony sample rate
@@ -170,9 +179,8 @@ async def run_bot(
         logger.info(f"Dial-out answered: {data}")
         dialout_manager.mark_successful()
         # Prompt the bot to greet the caller
-        await task.queue_frames(
-            [context_aggregator.user().get_context_frame()]
-        )
+        from pipecat.frames.frames import LLMRunFrame
+        await task.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_dialout_error")
     async def on_dialout_error(transport, data: Any):
