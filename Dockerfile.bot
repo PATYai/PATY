@@ -6,6 +6,17 @@ FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm-slim AS base
 # Keeps Python from buffering stdout and stderr
 ENV PYTHONUNBUFFERED=1
 
+# Install system dependencies required by daily-python for audio processing
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libopenblas-dev \
+        libresample1 \
+        libresample-dev \
+        libgl1 \
+        libglib2.0-0 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Create a non-privileged user
 ARG UID=10001
 RUN adduser \
@@ -35,7 +46,7 @@ RUN chown -R appuser:appuser /app
 # Switch to non-privileged user
 USER appuser
 
-# Cloud Run sets PORT environment variable
+# Fly.io sets PORT environment variable
 ENV PORT=8080
 
 CMD ["uv", "run", "uvicorn", "pipecat_outbound.server:app", "--host", "0.0.0.0", "--port", "8080"]

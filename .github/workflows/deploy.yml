@@ -1,4 +1,4 @@
-name: Deploy to Cloud Run
+name: Deploy to Fly.io
 
 on:
   push:
@@ -15,48 +15,33 @@ on:
         default: true
 
 env:
-  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
 jobs:
   deploy-bot:
     name: Deploy Bot Service
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || inputs.deploy_bot
-    outputs:
-      bot_url: ${{ steps.get-url.outputs.url }}
-
-    permissions:
-      contents: read
-      id-token: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+      - name: Setup Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+      - name: Set secrets
+        run: |
+          flyctl secrets set --config fly.toml \
+            DAILY_API_KEY="${{ secrets.DAILY_API_KEY }}" \
+            OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            CARTESIA_API_KEY="${{ secrets.CARTESIA_API_KEY }}" \
+            ASSEMBLYAI_API_KEY="${{ secrets.ASSEMBLYAI_API_KEY }}" \
+            BOT_API_KEY="${{ secrets.BOT_API_KEY }}" \
+            --stage
 
       - name: Deploy
-        env:
-          DAILY_API_KEY: ${{ secrets.DAILY_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          CARTESIA_API_KEY: ${{ secrets.CARTESIA_API_KEY }}
-          ASSEMBLYAI_API_KEY: ${{ secrets.ASSEMBLYAI_API_KEY }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: ./scripts/deploy-bot.sh
-
-      - name: Get bot service URL
-        id: get-url
-        run: |
-          URL=$(gcloud run services describe paty-bot --region "${GCP_REGION}" --format 'value(status.url)')
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
+        run: flyctl deploy --config fly.toml --remote-only
 
   deploy-mcp:
     name: Deploy MCP Server
@@ -64,39 +49,23 @@ jobs:
     needs: deploy-bot
     if: always() && (github.event_name == 'push' || inputs.deploy_mcp)
 
-    permissions:
-      contents: read
-      id-token: write
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+      - name: Setup Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Get bot service URL
-        id: bot-url
+      - name: Set secrets
+        working-directory: mcp
         run: |
-          URL="${{ needs.deploy-bot.outputs.bot_url }}"
-          if [ -z "$URL" ]; then
-            URL=$(gcloud run services describe paty-bot --region "${GCP_REGION}" --format 'value(status.url)' 2>/dev/null || echo "")
-          fi
-          if [ -z "$URL" ]; then
-            echo "Error: Could not determine bot service URL"
-            exit 1
-          fi
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          flyctl secrets set \
+            DAILY_API_KEY="${{ secrets.DAILY_API_KEY }}" \
+            BOT_SERVICE_URL="https://paty-bot.fly.dev" \
+            BOT_API_KEY="${{ secrets.BOT_API_KEY }}" \
+            MCP_API_KEY="${{ secrets.MCP_API_KEY }}" \
+            --stage
 
       - name: Deploy
-        env:
-          DAILY_API_KEY: ${{ secrets.DAILY_API_KEY }}
-          BOT_SERVICE_URL: ${{ steps.bot-url.outputs.url }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: ./scripts/deploy-mcp.sh
+        working-directory: mcp
+        run: flyctl deploy --remote-only

@@ -22,6 +22,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
     LLMUserAggregatorParams,
 )
+from pipecat.services.assemblyai.models import AssemblyAIConnectionParams
 from pipecat.services.assemblyai.stt import AssemblyAISTTService
 from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.openai.llm import OpenAILLMService
@@ -124,7 +125,10 @@ async def run_bot(
     )
 
     # Initialize services
-    stt = AssemblyAISTTService(api_key=os.getenv("ASSEMBLYAI_API_KEY", ""))
+    stt = AssemblyAISTTService(
+        api_key=os.getenv("ASSEMBLYAI_API_KEY", ""),
+        connection_params=AssemblyAIConnectionParams(sample_rate=8000),
+    )
 
     tts = CartesiaTTSService(
         api_key=os.getenv("CARTESIA_API_KEY", ""),

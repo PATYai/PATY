@@ -2,7 +2,7 @@
 PATY MCP Server - Control the PATY voice agent via MCP tools.
 
 This server exposes tools for making outbound calls using Daily and Pipecat.
-The bot runs as a separate Cloud Run service, triggered via HTTP POST.
+The bot runs as a separate Fly.io service, triggered via HTTP POST.
 
 Authentication:
     Set MCP_API_KEY environment variable to require Bearer token authentication.
@@ -60,19 +60,8 @@ mcp = FastMCP("PATY Control", auth=auth_provider)
 BOT_SERVICE_URL = os.environ.get("BOT_SERVICE_URL", "")
 
 
-async def _get_id_token(audience: str) -> str | None:
-    """Get a Google Cloud ID token for service-to-service auth.
-
-    Returns None if not running on Google Cloud (e.g., local development).
-    """
-    try:
-        from google.auth.transport.requests import Request
-        from google.oauth2 import id_token
-
-        token = id_token.fetch_id_token(Request(), audience)
-        return token
-    except Exception:
-        return None
+# Bot service auth key (for service-to-service auth)
+BOT_API_KEY = os.environ.get("BOT_API_KEY", "")
 
 
 async def create_daily_room(enable_dialout: bool = True) -> dict:
@@ -216,9 +205,8 @@ async def make_call(
 
         # Trigger bot service via HTTP POST
         headers = {"Content-Type": "application/json"}
-        id_token = await _get_id_token(BOT_SERVICE_URL)
-        if id_token:
-            headers["Authorization"] = f"Bearer {id_token}"
+        if BOT_API_KEY:
+            headers["Authorization"] = f"Bearer {BOT_API_KEY}"
 
         payload = {
             "room_url": room_info["room_url"],
@@ -228,7 +216,9 @@ async def make_call(
             "room_name": room_info["room_name"],
         }
 
-        async with aiohttp.ClientSession() as session:
+        # Use a long timeout since the bot blocks until the call ends
+        timeout = aiohttp.ClientTimeout(total=3600)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(
                 f"{BOT_SERVICE_URL}/start",
                 headers=headers,
@@ -362,6 +352,6 @@ async def get_call_status(room_name: str) -> dict:
 
 
 if __name__ == "__main__":
-    # Use PORT env var for Cloud Run compatibility
+    # Use PORT env var for Fly.io compatibility
     port = int(os.environ.get("PORT", 8080))
     mcp.run(transport="streamable-http", host="0.0.0.0", port=port)

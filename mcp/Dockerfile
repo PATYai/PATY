@@ -36,9 +36,9 @@ RUN chown -R appuser:appuser /app
 # Switch to non-privileged user
 USER appuser
 
-# Cloud Run sets PORT environment variable
+# Fly.io sets PORT environment variable
 ENV PORT=8080
 
 # Run the MCP server
-# FastMCP uses streamable-http transport by default which works with Cloud Run
+# FastMCP uses streamable-http transport
 CMD ["uv", "run", "python", "src/server.py"]
