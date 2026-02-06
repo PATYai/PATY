@@ -5,8 +5,8 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      deploy_voice:
-        description: 'Deploy voice agent'
+      deploy_bot:
+        description: 'Deploy bot service'
         type: boolean
         default: true
       deploy_mcp:
@@ -19,10 +19,12 @@ env:
   GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
 
 jobs:
-  deploy-voice:
-    name: Deploy Voice Agent
+  deploy-bot:
+    name: Deploy Bot Service
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || inputs.deploy_voice
+    if: github.event_name == 'push' || inputs.deploy_bot
+    outputs:
+      bot_url: ${{ steps.get-url.outputs.url }}
 
     permissions:
       contents: read
@@ -43,17 +45,24 @@ jobs:
 
       - name: Deploy
         env:
-          LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
-          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
-          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-          SIP_OUTBOUND_TRUNK_ID: ${{ secrets.SIP_OUTBOUND_TRUNK_ID }}
+          DAILY_API_KEY: ${{ secrets.DAILY_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CARTESIA_API_KEY: ${{ secrets.CARTESIA_API_KEY }}
+          ASSEMBLYAI_API_KEY: ${{ secrets.ASSEMBLYAI_API_KEY }}
           IMAGE_TAG: ${{ github.sha }}
-        run: ./scripts/deploy-voice.sh
+        run: ./scripts/deploy-bot.sh
+
+      - name: Get bot service URL
+        id: get-url
+        run: |
+          URL=$(gcloud run services describe paty-bot --region "${GCP_REGION}" --format 'value(status.url)')
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
 
   deploy-mcp:
     name: Deploy MCP Server
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || inputs.deploy_mcp
+    needs: deploy-bot
+    if: always() && (github.event_name == 'push' || inputs.deploy_mcp)
 
     permissions:
       contents: read
@@ -72,11 +81,22 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Get bot service URL
+        id: bot-url
+        run: |
+          URL="${{ needs.deploy-bot.outputs.bot_url }}"
+          if [ -z "$URL" ]; then
+            URL=$(gcloud run services describe paty-bot --region "${GCP_REGION}" --format 'value(status.url)' 2>/dev/null || echo "")
+          fi
+          if [ -z "$URL" ]; then
+            echo "Error: Could not determine bot service URL"
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
       - name: Deploy
         env:
-          LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
-          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
-          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-          SIP_OUTBOUND_TRUNK_ID: ${{ secrets.SIP_OUTBOUND_TRUNK_ID }}
+          DAILY_API_KEY: ${{ secrets.DAILY_API_KEY }}
+          BOT_SERVICE_URL: ${{ steps.bot-url.outputs.url }}
           IMAGE_TAG: ${{ github.sha }}
         run: ./scripts/deploy-mcp.sh

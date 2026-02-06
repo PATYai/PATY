@@ -60,7 +60,6 @@ class DailyOutboundProvider(OutboundProvider):
                 json={
                     "properties": {
                         "enable_dialout": True,
-                        "sip": {"sip_mode": "dial-out"},
                         "exp": int(time.time()) + 3600,
                     }
                 },

@@ -1,0 +1,41 @@
+# syntax=docker/dockerfile:1
+# Bot service Dockerfile - builds from project root context
+ARG PYTHON_VERSION=3.13
+FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm-slim AS base
+
+# Keeps Python from buffering stdout and stderr
+ENV PYTHONUNBUFFERED=1
+
+# Create a non-privileged user
+ARG UID=10001
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/app" \
+    --shell "/sbin/nologin" \
+    --uid "${UID}" \
+    appuser
+
+# Create working directory
+WORKDIR /app
+
+# Copy dependency files first for caching
+COPY pyproject.toml uv.lock* ./
+RUN touch README.md
+
+# Install dependencies
+RUN uv sync --locked || uv sync
+
+# Copy application code
+COPY pipecat_outbound/ pipecat_outbound/
+
+# Change ownership to non-privileged user
+RUN chown -R appuser:appuser /app
+
+# Switch to non-privileged user
+USER appuser
+
+# Cloud Run sets PORT environment variable
+ENV PORT=8080
+
+CMD ["uv", "run", "uvicorn", "pipecat_outbound.server:app", "--host", "0.0.0.0", "--port", "8080"]
