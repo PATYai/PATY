@@ -98,7 +98,9 @@ async def create_daily_room(enable_dialout: bool = True) -> dict:
                 error = await resp.text()
                 # If dial-out fails due to plan limitations, try without it
                 error_lower = error.lower()
-                if enable_dialout and any(x in error_lower for x in ["sip", "dialout", "plan", "display_name"]):
+                if enable_dialout and any(
+                    x in error_lower for x in ["sip", "dialout", "plan", "display_name"]
+                ):
                     return await create_daily_room(enable_dialout=False)
                 raise ValueError(f"Failed to create Daily room: {error}")
             room = await resp.json()
