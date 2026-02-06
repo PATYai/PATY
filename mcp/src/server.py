@@ -128,14 +128,16 @@ async def delete_daily_room(room_name: str) -> None:
     if not daily_api_key:
         raise ValueError("DAILY_API_KEY environment variable not set")
 
-    async with aiohttp.ClientSession() as session:
-        async with session.delete(
+    async with (
+        aiohttp.ClientSession() as session,
+        session.delete(
             f"https://api.daily.co/v1/rooms/{room_name}",
             headers={"Authorization": f"Bearer {daily_api_key}"},
-        ) as resp:
-            if resp.status not in (200, 204, 404):
-                error = await resp.text()
-                raise ValueError(f"Failed to delete Daily room: {error}")
+        ) as resp,
+    ):
+        if resp.status not in (200, 204, 404):
+            error = await resp.text()
+            raise ValueError(f"Failed to delete Daily room: {error}")
 
 
 async def list_daily_rooms() -> list[dict]:
@@ -144,16 +146,18 @@ async def list_daily_rooms() -> list[dict]:
     if not daily_api_key:
         raise ValueError("DAILY_API_KEY environment variable not set")
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
+    async with (
+        aiohttp.ClientSession() as session,
+        session.get(
             "https://api.daily.co/v1/rooms",
             headers={"Authorization": f"Bearer {daily_api_key}"},
-        ) as resp:
-            if resp.status != 200:
-                error = await resp.text()
-                raise ValueError(f"Failed to list Daily rooms: {error}")
-            data = await resp.json()
-            return data.get("data", [])
+        ) as resp,
+    ):
+        if resp.status != 200:
+            error = await resp.text()
+            raise ValueError(f"Failed to list Daily rooms: {error}")
+        data = await resp.json()
+        return data.get("data", [])
 
 
 async def get_daily_room(room_name: str) -> dict | None:
@@ -162,17 +166,19 @@ async def get_daily_room(room_name: str) -> dict | None:
     if not daily_api_key:
         raise ValueError("DAILY_API_KEY environment variable not set")
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
+    async with (
+        aiohttp.ClientSession() as session,
+        session.get(
             f"https://api.daily.co/v1/rooms/{room_name}",
             headers={"Authorization": f"Bearer {daily_api_key}"},
-        ) as resp:
-            if resp.status == 404:
-                return None
-            if resp.status != 200:
-                error = await resp.text()
-                raise ValueError(f"Failed to get Daily room: {error}")
-            return await resp.json()
+        ) as resp,
+    ):
+        if resp.status == 404:
+            return None
+        if resp.status != 200:
+            error = await resp.text()
+            raise ValueError(f"Failed to get Daily room: {error}")
+        return await resp.json()
 
 
 @mcp.tool()
@@ -218,15 +224,17 @@ async def make_call(
 
         # Use a long timeout since the bot blocks until the call ends
         timeout = aiohttp.ClientTimeout(total=3600)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(
+        async with (
+            aiohttp.ClientSession(timeout=timeout) as session,
+            session.post(
                 f"{BOT_SERVICE_URL}/start",
                 headers=headers,
                 json=payload,
-            ) as resp:
-                if resp.status != 200:
-                    error = await resp.text()
-                    raise ValueError(f"Failed to start bot: {error}")
+            ) as resp,
+        ):
+            if resp.status != 200:
+                error = await resp.text()
+                raise ValueError(f"Failed to start bot: {error}")
 
         # Build response message
         if dialout_enabled:

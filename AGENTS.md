@@ -1,5 +1,11 @@
 # AGENTS.md
 
+## Workflow
+
+- **Always lint before considering work done.** Run `uv run --directory mcp ruff check src/` for MCP changes and `uv run --directory voice ruff check ../pipecat_outbound/` for bot changes.
+
+## Overview
+
 PATY (Please And Thank You) is a voice AI project with three components:
 
 1. **`/pipecat_outbound`** - A Pipecat-based voice bot for outbound calls via Daily

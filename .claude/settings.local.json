@@ -6,7 +6,6 @@
       "Bash(uv run ruff:*)",
       "Bash(uv lock:*)",
       "Bash(uv run:*)",
-      "Bash(MCP_AUTH_DISABLED=true uv run python:*)",
       "WebSearch",
       "Bash(uv sync:*)",
       "Bash(curl:*)",
@@ -18,8 +17,7 @@
       "Bash(./scripts/deploy-bot.sh:*)",
       "mcp__paty-control__make_call",
       "Bash(gcloud run services logs read:*)",
-      "Bash(sh:*)",
-      "Bash(~/.fly/bin/fly secrets list:*)"
+      "Bash(gh run view:*)"
     ]
   },
   "enabledMcpjsonServers": [
