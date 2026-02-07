@@ -61,7 +61,7 @@ jobs:
         run: |
           flyctl secrets set \
             DAILY_API_KEY="${{ secrets.DAILY_API_KEY }}" \
-            BOT_SERVICE_URL="https://paty-bot.fly.dev" \
+            BOT_SERVICE_URL="https://paty-stage-bot.fly.dev" \
             BOT_API_KEY="${{ secrets.BOT_API_KEY }}" \
             MCP_API_KEY="${{ secrets.MCP_API_KEY }}" \
             --stage

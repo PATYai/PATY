@@ -8,15 +8,15 @@ COMPONENT="${1:-all}"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 deploy_bot() {
-    echo "==> Deploying paty-bot..."
+    echo "==> Deploying paty-stage-bot..."
     fly deploy --config "$ROOT_DIR/fly.toml" --remote-only
-    echo "==> paty-bot deployed: https://paty-bot.fly.dev"
+    echo "==> paty-stage-bot deployed: https://paty-stage-bot.fly.dev"
 }
 
 deploy_mcp() {
-    echo "==> Deploying paty-mcp..."
+    echo "==> Deploying paty-stage-mcp..."
     (cd "$ROOT_DIR/mcp" && fly deploy --remote-only)
-    echo "==> paty-mcp deployed: https://paty-mcp.fly.dev"
+    echo "==> paty-stage-mcp deployed: https://paty-stage-mcp.fly.dev"
 }
 
 case "$COMPONENT" in

@@ -1,4 +1,4 @@
-app = "paty-mcp"
+app = "paty-stage-mcp"
 primary_region = "ord"
 
 [build]
