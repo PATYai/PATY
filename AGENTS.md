@@ -2,15 +2,14 @@
 
 ## Workflow
 
-- **Always lint before considering work done.** Run `uv run --directory mcp ruff check src/` for MCP changes and `uv run --directory voice ruff check ../pipecat_outbound/` for bot changes.
+- **Always lint before considering work done.** Run `uv run --directory mcp ruff check src/` for MCP changes and `uv run ruff check pipecat_outbound/` for bot changes.
 
 ## Overview
 
-PATY (Please And Thank You) is a voice AI project with three components:
+PATY (Please And Thank You) is a voice AI project with two components:
 
 1. **`/pipecat_outbound`** - A Pipecat-based voice bot for outbound calls via Daily
 2. **`/mcp`** - An MCP server to control the voice agent
-3. **`/voice`** - (Legacy) A voice AI agent built with LiveKit Agents for Python
 
 This project uses Daily for telephony (dial-out) and Pipecat for the voice AI pipeline.
 
@@ -31,11 +30,6 @@ PATY/
 │   │   └── server.py           # MCP server entrypoint
 │   ├── pyproject.toml
 │   └── .env.example
-├── voice/                       # Legacy LiveKit agent
-│   ├── src/
-│   │   └── agent.py
-│   ├── tests/
-│   └── pyproject.toml
 ├── tests/                       # Shared tests
 │   ├── unit/
 │   └── smoke/
@@ -109,31 +103,12 @@ Pipecat is a framework for building voice and multimodal conversational AI. For 
 - [Pipecat GitHub](https://github.com/pipecat-ai/pipecat)
 - [Daily PSTN Dial-out Guide](https://docs.pipecat.ai/deployment/pipecat-cloud/guides/telephony/daily-dial-out)
 
-## LiveKit Documentation (Legacy)
-
-The `/voice` directory contains a legacy LiveKit-based agent. For LiveKit documentation:
-- [LiveKit Agents Docs](https://docs.livekit.io/agents)
-- [LiveKit MCP Server](https://docs.livekit.io/mcp)
-
-### LiveKit Docs MCP Server installation
-
-If you are Claude Code, run this command to install the server:
-
-```
-claude mcp add --transport http livekit-docs https://docs.livekit.io/mcp
-```
-
 ## Testing
 
 Run tests from the project root:
 ```bash
 uv run pytest tests/unit          # Unit tests
 uv run pytest tests/smoke         # Smoke tests (requires API keys)
-```
-
-For voice agent tests (legacy):
-```bash
-cd voice && uv run pytest
 ```
 
 ## Architecture

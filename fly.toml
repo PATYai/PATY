@@ -1,4 +1,4 @@
-app = "paty-bot"
+app = "paty-stage-bot"
 primary_region = "ord"
 
 [build]

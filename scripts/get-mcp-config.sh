@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 MCP_CONFIG_FILE="$PROJECT_ROOT/.mcp.json"
 
-MCP_URL="https://paty-mcp.fly.dev/mcp"
+MCP_URL="https://paty-stage-mcp.fly.dev/mcp"
 
 # Check for API key
 if [ -z "$MCP_API_KEY" ]; then

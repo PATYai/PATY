@@ -25,15 +25,12 @@ jobs:
     
     - name: Install dependencies
       run: |
-        UV_GIT_LFS=1 uv sync --dev --directory voice
         uv sync --dev --directory mcp
 
     - name: Run ruff linter
       run: |
-        uv run --directory voice ruff check --output-format=github .
         uv run --directory mcp ruff check --output-format=github .
 
     - name: Run ruff formatter
       run: |
-        uv run --directory voice ruff format --check --diff .
-        uv run --directory mcp ruff format --check --diff . 
+        uv run --directory mcp ruff format --check --diff .
