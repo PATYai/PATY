@@ -12,8 +12,11 @@ from typing import Any
 
 from dotenv import load_dotenv
 from loguru import logger
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
+from pipecat.observers.loggers.metrics_log_observer import MetricsLogObserver
+from pipecat.observers.turn_tracking_observer import TurnTrackingObserver
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
@@ -27,9 +30,15 @@ from pipecat.services.assemblyai.stt import AssemblyAISTTService
 from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.transports.daily.transport import DailyParams, DailyTransport
+from pipecat.utils.tracing.setup import setup_tracing
 
 load_dotenv("../.env.local")
 load_dotenv(".env.local")
+
+# OpenTelemetry tracing — reads OTEL_EXPORTER_OTLP_ENDPOINT and
+# OTEL_EXPORTER_OTLP_HEADERS from env automatically.
+# Local: defaults to localhost:4317 (Jaeger). Prod: set env vars for Honeycomb.
+setup_tracing("paty-bot", exporter=OTLPSpanExporter())
 
 # PATY system prompt
 PATY_SYSTEM_PROMPT = """
@@ -159,6 +168,13 @@ async def run_bot(
         ]
     )
 
+    turn_observer = TurnTrackingObserver()
+
+    @turn_observer.event_handler("on_turn_ended")
+    async def on_turn_ended(turn_number, duration, was_interrupted):
+        status = "interrupted" if was_interrupted else "completed"
+        logger.info(f"Turn {turn_number} {status} after {duration:.2f}s")
+
     task = PipelineTask(
         pipeline,
         params=PipelineParams(
@@ -168,6 +184,8 @@ async def run_bot(
             audio_in_sample_rate=8000,  # Telephony sample rate
             audio_out_sample_rate=8000,
         ),
+        enable_tracing=True,
+        observers=[MetricsLogObserver(), turn_observer],
     )
 
     # Initialize dialout manager
@@ -184,6 +202,7 @@ async def run_bot(
         dialout_manager.mark_successful()
         # Prompt the bot to greet the caller
         from pipecat.frames.frames import LLMRunFrame
+
         await task.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_dialout_error")
