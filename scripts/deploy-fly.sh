@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Deploy both PATY services to Fly.io
-# Usage: ./scripts/deploy-fly.sh [bot|mcp|all]
+# Deploy PATY services to Fly.io
+# Usage: ./scripts/deploy-fly.sh [bot|mcp|web|all]
 
 COMPONENT="${1:-all}"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -19,6 +19,12 @@ deploy_mcp() {
     echo "==> paty-stage-mcp deployed: https://paty-stage-mcp.fly.dev"
 }
 
+deploy_web() {
+    echo "==> Deploying paty-web..."
+    (cd "$ROOT_DIR/web" && fly deploy --remote-only)
+    echo "==> paty-web deployed: https://paty-web.fly.dev"
+}
+
 case "$COMPONENT" in
     bot)
         deploy_bot
@@ -26,12 +32,16 @@ case "$COMPONENT" in
     mcp)
         deploy_mcp
         ;;
+    web)
+        deploy_web
+        ;;
     all)
         deploy_bot
         deploy_mcp
+        deploy_web
         ;;
     *)
-        echo "Usage: $0 [bot|mcp|all]"
+        echo "Usage: $0 [bot|mcp|web|all]"
         exit 1
         ;;
 esac

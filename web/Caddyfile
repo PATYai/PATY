@@ -1,0 +1,31 @@
+# PATY Web Gateway
+# Serves the landing page and proxies /mcp to the MCP service.
+#
+# Custom domain: Configure via `flyctl certs add paty.ai -a paty-web`
+# then point DNS A/AAAA records to Fly.io edge IPs.
+
+:8080 {
+	# MCP endpoint — proxy to the MCP Fly.io service.
+	# Preserves path, headers, and SSE streaming.
+	handle /mcp* {
+		reverse_proxy https://paty-stage-mcp.fly.dev {
+			header_up Host paty-stage-mcp.fly.dev
+			# Flush immediately for SSE / streamable-http
+			flush_interval -1
+		}
+	}
+
+	# Landing page — serve static files.
+	handle {
+		root * /srv
+		file_server
+		try_files {path} /index.html
+	}
+
+	# Security headers
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}

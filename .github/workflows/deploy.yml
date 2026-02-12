@@ -13,6 +13,10 @@ on:
         description: 'Deploy MCP server'
         type: boolean
         default: true
+      deploy_web:
+        description: 'Deploy web gateway (paty.ai)'
+        type: boolean
+        default: true
 
 env:
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -70,10 +74,27 @@ jobs:
         working-directory: mcp
         run: flyctl deploy --remote-only
 
+  deploy-web:
+    name: Deploy Web Gateway
+    runs-on: ubuntu-latest
+    needs: deploy-mcp
+    if: always() && (github.event_name == 'push' || inputs.deploy_web)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy
+        working-directory: web
+        run: flyctl deploy --remote-only
+
   smoke-test:
     name: Smoke Tests
     runs-on: ubuntu-latest
-    needs: [deploy-bot, deploy-mcp]
+    needs: [deploy-bot, deploy-mcp, deploy-web]
     if: always() && (needs.deploy-bot.result == 'success' || needs.deploy-mcp.result == 'success')
 
     steps:

@@ -6,10 +6,11 @@
 
 ## Overview
 
-PATY (Please And Thank You) is a voice AI project with two components:
+PATY (Please And Thank You) is a voice AI project with three components:
 
 1. **`/pipecat_outbound`** - A Pipecat-based voice bot for outbound calls via Daily
 2. **`/mcp`** - An MCP server to control the voice agent
+3. **`/web`** - Landing page and web gateway (paty.ai)
 
 This project uses Daily for telephony (dial-out) and Pipecat for the voice AI pipeline.
 
@@ -30,6 +31,12 @@ PATY/
 │   │   └── server.py           # MCP server entrypoint
 │   ├── pyproject.toml
 │   └── .env.example
+├── web/                         # Landing page & web gateway (paty.ai)
+│   ├── static/                 # HTML/CSS/JS landing page
+│   ├── Caddyfile               # Reverse proxy config
+│   ├── Dockerfile              # Caddy container
+│   └── fly.toml                # Fly.io deployment
+├── docs/                        # MkDocs documentation (paty.org)
 ├── tests/                       # Shared tests
 │   ├── unit/
 │   └── smoke/
@@ -127,3 +134,31 @@ uv run pytest tests/smoke         # Smoke tests (requires API keys)
 ```
 Phone Audio -> Daily Transport -> AssemblyAI STT -> OpenAI LLM -> Cartesia TTS -> Daily Transport -> Phone Audio
 ```
+
+## Hosting
+
+Three domains, three deployment targets:
+
+| Domain | What | Platform | Directory |
+|--------|------|----------|-----------|
+| **paty.ai** | Landing page + MCP proxy | Fly.io (`paty-web`) | `/web` |
+| **paty.ai/mcp** | MCP endpoint (proxied) | Fly.io (`paty-stage-mcp`) | `/mcp` |
+| **paty.org** | Documentation | GitHub Pages | `/docs` |
+
+### Web Gateway (`/web`)
+
+A Caddy reverse proxy on Fly.io that serves the landing page at `/` and proxies `/mcp` requests to the MCP service. This keeps MCP and the landing page on the same `paty.ai` domain.
+
+```bash
+# Deploy the web gateway
+./scripts/deploy-fly.sh web
+
+# Set up custom domain (one-time)
+fly certs add paty.ai -a paty-web
+```
+
+### Docs (paty.org)
+
+MkDocs Material, built and deployed to GitHub Pages via the `deploy-docs.yml` workflow. Custom domain configured via `docs/CNAME`.
+
+DNS: Point `paty.org` A/AAAA records to GitHub Pages IPs, then configure the custom domain in the repo's GitHub Pages settings.

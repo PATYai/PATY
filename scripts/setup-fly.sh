@@ -13,6 +13,7 @@ ENV_FILE="$ROOT_DIR/.env.local"
 
 BOT_APP="paty-stage-bot"
 MCP_APP="paty-stage-mcp"
+WEB_APP="paty-web"
 REGION="ord"
 
 # --- Helpers ---
@@ -64,6 +65,7 @@ OTEL_EXPORTER_OTLP_HEADERS=$(grep "^OTEL_EXPORTER_OTLP_HEADERS=" "$ENV_FILE" 2>/
 echo "==> Creating Fly apps in $REGION region"
 create_app "$BOT_APP"
 create_app "$MCP_APP"
+create_app "$WEB_APP"
 
 # --- Set bot secrets ---
 
@@ -100,10 +102,19 @@ fly deploy --config "$ROOT_DIR/fly.toml" --remote-only -a "$BOT_APP"
 echo "==> Deploying $MCP_APP"
 (cd "$ROOT_DIR/mcp" && fly deploy --remote-only -a "$MCP_APP")
 
+echo "==> Deploying $WEB_APP"
+(cd "$ROOT_DIR/web" && fly deploy --remote-only -a "$WEB_APP")
+
 echo ""
 echo "==> Setup complete!"
 echo "  Bot: https://${BOT_APP}.fly.dev"
 echo "  MCP: https://${MCP_APP}.fly.dev/mcp"
+echo "  Web: https://${WEB_APP}.fly.dev"
+echo ""
+echo "==> Custom domain setup:"
+echo "  To connect paty.ai, run:"
+echo "    fly certs add paty.ai -a $WEB_APP"
+echo "  Then add DNS records per the output."
 if [ -n "$OTEL_EXPORTER_OTLP_ENDPOINT" ]; then
     echo "  Tracing: enabled ($OTEL_EXPORTER_OTLP_ENDPOINT)"
 else
