@@ -1,10 +1,9 @@
 {
   "mcpServers": {
-    "paty-control": {
+    "paty-control-local": {
       "type": "http",
-      "url": "https://paty-stage-mcp.fly.dev/mcp",
+      "url": "http://localhost:8080/mcp",
       "headers": {
-        
         "Accept": "application/json, text/event-stream"
       }
     },

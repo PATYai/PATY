@@ -30,6 +30,12 @@ from pipecat.services.assemblyai.stt import AssemblyAISTTService
 from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.transports.daily.transport import DailyParams, DailyTransport
+from pipecat.turns.user_turn_strategies import (
+    TranscriptionUserTurnStartStrategy,
+    TranscriptionUserTurnStopStrategy,
+    UserTurnStrategies,
+    VADUserTurnStartStrategy,
+)
 from pipecat.utils.tracing.setup import setup_tracing
 
 load_dotenv("../.env.local")
@@ -38,7 +44,7 @@ load_dotenv(".env.local")
 # OpenTelemetry tracing — reads OTEL_EXPORTER_OTLP_ENDPOINT and
 # OTEL_EXPORTER_OTLP_HEADERS from env automatically.
 # Local: defaults to localhost:4317 (Jaeger). Prod: set env vars for Honeycomb.
-setup_tracing("paty-bot", exporter=OTLPSpanExporter())
+setup_tracing(os.getenv("OTEL_SERVICE_NAME", "paty-bot"), exporter=OTLPSpanExporter())
 
 # PATY system prompt
 PATY_SYSTEM_PROMPT = """
@@ -149,10 +155,28 @@ async def run_bot(
     # Initialize LLM context with PATY system prompt
     messages = [{"role": "system", "content": PATY_SYSTEM_PROMPT}]
     context = LLMContext(messages)
+    # Conservative VAD settings for PSTN — higher confidence and start_secs
+    # to avoid echo triggering false interruptions.
+    vad = SileroVADAnalyzer(
+        params=VADParams(
+            confidence=0.75,
+            start_secs=0.3,
+            stop_secs=0.7,
+            min_volume=0.65,
+        )
+    )
+
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
         user_params=LLMUserAggregatorParams(
-            vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.8)),
+            vad_analyzer=vad,
+            user_turn_strategies=UserTurnStrategies(
+                start=[
+                    VADUserTurnStartStrategy(),
+                    TranscriptionUserTurnStartStrategy(use_interim=True),
+                ],
+                stop=[TranscriptionUserTurnStopStrategy(timeout=0.5)],
+            ),
         ),
     )
 
@@ -178,7 +202,6 @@ async def run_bot(
     task = PipelineTask(
         pipeline,
         params=PipelineParams(
-            allow_interruptions=False,  # Disable interruptions to avoid PSTN echo triggering VAD
             enable_metrics=True,
             enable_usage_metrics=True,
             audio_in_sample_rate=8000,  # Telephony sample rate
