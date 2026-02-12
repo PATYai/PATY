@@ -1,6 +1,6 @@
 site_name: PATY
 site_description: Voice AI agent that makes phone calls with politeness built in
-site_url: https://paty.org
+site_url: https://docs.paty.ai
 
 theme:
   name: material

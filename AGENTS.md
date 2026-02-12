@@ -143,7 +143,7 @@ Three domains, three deployment targets:
 |--------|------|----------|-----------|
 | **paty.ai** | Landing page + MCP proxy | Fly.io (`paty-web`) | `/web` |
 | **paty.ai/mcp** | MCP endpoint (proxied) | Fly.io (`paty-stage-mcp`) | `/mcp` |
-| **paty.org** | Documentation | GitHub Pages | `/docs` |
+| **docs.paty.ai** | Documentation | GitHub Pages | `/docs` |
 
 ### Web Gateway (`/web`)
 
@@ -161,4 +161,4 @@ fly certs add paty.ai -a paty-web
 
 MkDocs Material, built and deployed to GitHub Pages via the `deploy-docs.yml` workflow. Custom domain configured via `docs/CNAME`.
 
-DNS: Point `paty.org` A/AAAA records to GitHub Pages IPs, then configure the custom domain in the repo's GitHub Pages settings.
+DNS: Add a `CNAME` record for `docs.paty.ai` pointing to `<org>.github.io`, then configure the custom domain in the repo's GitHub Pages settings.
