@@ -1,22 +1,32 @@
 """
 PATY MCP Server - Control the PATY voice agent via MCP tools.
 
-This server exposes tools for making outbound calls using Daily and Pipecat.
-The bot runs as a separate Fly.io service, triggered via HTTP POST.
+This server exposes tools for making outbound calls using Daily and Pipecat,
+and an encrypted secrets vault with bearer-based access control.
 
 Authentication:
     Set MCP_API_KEY environment variable to require Bearer token authentication.
     If not set, the server runs without authentication (not recommended for production).
+
+Secrets vault:
+    Set SECRETS_MASTER_KEY to enable the encrypted secrets manager.
+    Set SECRETS_ADMIN_KEY to enable bearer administration tools.
+    Secrets are encrypted at rest with AES-256-GCM envelope encryption.
+    Decryption requires a valid bearer token looked up against the database.
 """
 
 import os
 import time
 import uuid
+from pathlib import Path
 
 import aiohttp
 from dotenv import load_dotenv
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
+
+from vault.database import SecretsDatabase
+from vault.manager import SecretsManager
 
 
 class ApiKeyVerifier(TokenVerifier):
@@ -55,6 +65,20 @@ else:
     )
 
 mcp = FastMCP("PATY Control", auth=auth_provider)
+
+# ── Secrets vault setup ────────────────────────────────────────────
+SECRETS_MASTER_KEY = os.environ.get("SECRETS_MASTER_KEY", "")
+SECRETS_ADMIN_KEY = os.environ.get("SECRETS_ADMIN_KEY", "")
+SECRETS_DB_PATH = os.environ.get(
+    "SECRETS_DB_PATH",
+    str(Path(__file__).parent.parent / "data" / "vault.db"),
+)
+
+secrets_mgr: SecretsManager | None = None
+if SECRETS_MASTER_KEY:
+    Path(SECRETS_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+    _db = SecretsDatabase(SECRETS_DB_PATH)
+    secrets_mgr = SecretsManager(_db, SECRETS_MASTER_KEY)
 
 # Bot service URL (required for making calls)
 BOT_SERVICE_URL = os.environ.get("BOT_SERVICE_URL", "")
@@ -359,6 +383,175 @@ async def get_call_status(room_name: str) -> dict:
             "success": False,
             "error": str(e),
         }
+
+
+# ── Secrets vault tools ────────────────────────────────────────────
+
+
+def _require_vault() -> SecretsManager:
+    """Return the secrets manager or raise if not configured."""
+    if secrets_mgr is None:
+        raise ValueError(
+            "Secrets vault not configured. Set SECRETS_MASTER_KEY env var."
+        )
+    return secrets_mgr
+
+
+def _require_admin(admin_key: str) -> None:
+    """Validate the admin key or raise."""
+    if not SECRETS_ADMIN_KEY:
+        raise ValueError(
+            "Admin operations disabled. Set SECRETS_ADMIN_KEY env var."
+        )
+    if admin_key != SECRETS_ADMIN_KEY:
+        raise ValueError("Invalid admin key.")
+
+
+@mcp.tool()
+async def secrets_create_bearer(admin_key: str, name: str) -> dict:
+    """Create a new authorized bearer for the secrets vault.
+
+    This is an admin operation requiring the SECRETS_ADMIN_KEY.
+    The returned token is shown exactly once and cannot be recovered.
+
+    Args:
+        admin_key: The admin key for authorization
+        name: A human-readable name for this bearer (e.g. "ci-pipeline")
+
+    Returns:
+        The bearer_id and bearer_token (store the token securely!)
+    """
+    try:
+        mgr = _require_vault()
+        _require_admin(admin_key)
+        bearer_id, token = mgr.create_bearer(name)
+        return {
+            "success": True,
+            "bearer_id": bearer_id,
+            "bearer_token": token,
+            "name": name,
+            "message": "Store this token securely. It cannot be recovered.",
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+async def secrets_revoke_bearer(admin_key: str, bearer_id: str) -> dict:
+    """Revoke a bearer token. Its secrets remain encrypted but become inaccessible.
+
+    Args:
+        admin_key: The admin key for authorization
+        bearer_id: The ID of the bearer to revoke
+
+    Returns:
+        Success or failure indication
+    """
+    try:
+        mgr = _require_vault()
+        _require_admin(admin_key)
+        return mgr.revoke_bearer(bearer_id)
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+async def secrets_list_bearers(admin_key: str) -> dict:
+    """List all bearers in the secrets vault (admin operation).
+
+    Args:
+        admin_key: The admin key for authorization
+
+    Returns:
+        List of bearers with metadata (no keys or tokens)
+    """
+    try:
+        mgr = _require_vault()
+        _require_admin(admin_key)
+        return mgr.list_bearers()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+async def store_secret(bearer_token: str, name: str, value: str) -> dict:
+    """Encrypt and store a secret in the vault.
+
+    The secret is encrypted with a unique data key (AES-256-GCM), which is
+    itself encrypted with the bearer's key encryption key. If a secret with
+    this name already exists for this bearer, it is updated in place.
+
+    Args:
+        bearer_token: Your authorized bearer token
+        name: A unique name for this secret (e.g. "OPENAI_API_KEY")
+        value: The secret value to encrypt and store
+
+    Returns:
+        Success indicator and whether the secret was created or updated
+    """
+    try:
+        mgr = _require_vault()
+        return mgr.store_secret(bearer_token, name, value)
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+async def get_secret(bearer_token: str, name: str) -> dict:
+    """Decrypt and retrieve a secret from the vault.
+
+    The bearer token is looked up in the database to retrieve the decryption
+    key. Only the bearer who stored the secret can retrieve it.
+
+    Args:
+        bearer_token: Your authorized bearer token
+        name: The name of the secret to retrieve
+
+    Returns:
+        The decrypted secret value, or an error if unauthorized/not found
+    """
+    try:
+        mgr = _require_vault()
+        return mgr.get_secret(bearer_token, name)
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+async def list_secrets(bearer_token: str) -> dict:
+    """List all secret names belonging to the authenticated bearer.
+
+    Returns only names and timestamps, never the secret values.
+
+    Args:
+        bearer_token: Your authorized bearer token
+
+    Returns:
+        List of secret names with creation/update timestamps
+    """
+    try:
+        mgr = _require_vault()
+        return mgr.list_secrets(bearer_token)
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+async def delete_secret(bearer_token: str, name: str) -> dict:
+    """Permanently delete a secret from the vault.
+
+    Args:
+        bearer_token: Your authorized bearer token
+        name: The name of the secret to delete
+
+    Returns:
+        Success or failure indication
+    """
+    try:
+        mgr = _require_vault()
+        return mgr.delete_secret(bearer_token, name)
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 if __name__ == "__main__":

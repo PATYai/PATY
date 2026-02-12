@@ -12,6 +12,7 @@ dependencies = [
     "fastmcp>=2,<3",
     "aiohttp>=3.9.0",
     "python-dotenv",
+    "cryptography>=43.0",
 ]
 
 [dependency-groups]

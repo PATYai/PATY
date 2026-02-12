@@ -1,7 +1,13 @@
+import os
 import sys
 from unittest.mock import MagicMock
 
 import pytest
+
+# Add mcp/src to path so vault package is importable in tests
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "..", "mcp", "src")
+)
 
 # Mock pipecat modules BEFORE they are imported by any code
 mock_pipecat = MagicMock()
