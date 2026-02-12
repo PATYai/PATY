@@ -2,8 +2,9 @@
   "mcpServers": {
     "paty-control": {
       "type": "http",
-      "url": "https://paty-mcp.fly.dev/mcp",
+      "url": "https://paty-stage-mcp.fly.dev/mcp",
       "headers": {
+        
         "Accept": "application/json, text/event-stream"
       }
     },

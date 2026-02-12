@@ -22,6 +22,8 @@
   },
   "enabledMcpjsonServers": [
     "paty-control",
-    "livekit-docs"
-  ]
+    "livekit-docs",
+    "paty-control-local"
+  ],
+  "enableAllProjectMcpServers": true
 }

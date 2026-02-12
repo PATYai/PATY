@@ -1,13 +1,13 @@
 
 ```text
-┌───┐   ██████   █████   ██████   ██. ██
+┌───┐   ██████   █████   ██████   ██  ██
 │ • │   █    █   █   █     ██     ██████
 │ • │   ██████   █████     ██       ██
 └───┘   █        █   █     ██       ██
         █        █   █     ██       ██
 ```
-
-## Project Structure
+It's like LiteLLM but for voice projects.
+## 🚧 Project Structure
 
 This project consists of two components:
 
@@ -74,6 +74,29 @@ To add the PATY MCP server to Claude Code:
 claude mcp add paty-control "uv run --directory /path/to/PATY/mcp python src/server.py"
 ```
 
+## Tracing
+
+The bot emits OpenTelemetry traces for each conversation turn, with spans for STT, LLM, and TTS. It also logs turn completion/interruption events via `TurnTrackingObserver`.
+
+### Local (Jaeger)
+
+Start Jaeger, then run the bot as normal — traces are sent to `localhost:4317` by default:
+
+```bash
+docker run -d --name jaeger -p 16686:16686 -p 4317:4317 jaegertracing/all-in-one:latest
+```
+
+View traces at http://localhost:16686, service name `paty-bot`.
+
+### Production (Honeycomb)
+
+Set these env vars (or Fly secrets) to export traces to Honeycomb:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io:443
+OTEL_EXPORTER_OTLP_HEADERS=x-honeycomb-team=<your-api-key>
+```
+
 ## Tests
 
 ```console
@@ -82,7 +105,17 @@ uv run pytest tests/ -v
 
 ## Deploying to Fly.io
 
-Both components are deployed to Fly.io. Push to `main` to trigger deployment, or use the deploy script:
+Both components are deployed to Fly.io.
+
+### First-time setup
+
+Create the apps, set secrets from `.env.local`, and deploy:
+
+```bash
+./scripts/setup-fly.sh
+```
+
+### Subsequent deploys
 
 ```bash
 ./scripts/deploy-fly.sh [bot|mcp|all]
