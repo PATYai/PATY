@@ -186,6 +186,8 @@ async def get_daily_room(room_name: str) -> dict | None:
 @mcp.tool()
 async def make_call(
     phone_number: str,
+    instructions: str | None = None,
+    secrets: dict[str, str] | None = None,
     caller_id: str | None = None,
     room_name: str | None = None,
 ) -> dict:
@@ -194,6 +196,11 @@ async def make_call(
 
     Args:
         phone_number: The phone number to call (E.164 format, e.g., +14155551234)
+        instructions: Natural language instructions for the bot describing the goal of the call
+                      (e.g., "Schedule a vet appointment for this Saturday after noon")
+        secrets: Key-value pairs of sensitive information the bot may need during the call
+                 (e.g., {"pet_name": "zipper", "phone_number": "9706330939"}).
+                 These are injected into the bot's context but not logged.
         caller_id: The caller ID to display (must be a verified number on your Daily account)
         room_name: Optional room name for the call (auto-generated if not provided)
 
@@ -222,6 +229,8 @@ async def make_call(
             "phone_number": phone_number,
             "caller_id": caller_id,
             "room_name": room_info["room_name"],
+            "instructions": instructions,
+            "secrets": secrets,
         }
 
         # Use a long timeout since the bot blocks until the call ends
