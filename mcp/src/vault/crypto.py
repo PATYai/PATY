@@ -23,6 +23,30 @@ SALT_SIZE = 16  # 128 bits for PBKDF2
 PBKDF2_ITERATIONS = 600_000  # OWASP 2023 recommendation for SHA-256
 
 
+def combine_key_shares(shares: list[str]) -> str:
+    """Combine multiple key shares into a single passphrase.
+
+    Implements N-of-N split knowledge: all shares are required, none is
+    sufficient alone.  Shares are sorted lexicographically before combining
+    so the result is order-independent.  A null-byte separator prevents
+    ambiguity (e.g. shares ["AB", "C"] vs ["A", "BC"] produce different
+    outputs).
+
+    Args:
+        shares: Two or more key share strings.
+
+    Returns:
+        A combined passphrase string (hex-encoded SHA-256 digest).
+
+    Raises:
+        ValueError: If fewer than 2 shares are provided.
+    """
+    if len(shares) < 2:
+        raise ValueError("Split knowledge requires at least 2 key shares")
+    joined = "\x00".join(sorted(shares))
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
+
 def derive_master_key(passphrase: str, salt: bytes) -> bytes:
     """Derive a 256-bit master key from a passphrase using PBKDF2-HMAC-SHA256."""
     kdf = PBKDF2HMAC(

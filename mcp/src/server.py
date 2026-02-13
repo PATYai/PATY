@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
 
+from vault.crypto import combine_key_shares
 from vault.database import SecretsDatabase
 from vault.manager import SecretsManager
 
@@ -67,18 +68,38 @@ else:
 mcp = FastMCP("PATY Control", auth=auth_provider)
 
 # ── Secrets vault setup ────────────────────────────────────────────
-SECRETS_MASTER_KEY = os.environ.get("SECRETS_MASTER_KEY", "")
+#
+# The master passphrase can come from either:
+#   1. A single SECRETS_MASTER_KEY env var (simple mode), or
+#   2. Multiple SECRETS_KEY_SHARE_* env vars (split-knowledge mode).
+#
+# In split-knowledge mode, each share is held by a different person and
+# set independently (e.g. via `fly secrets set`).  All shares are required
+# to derive the master key; no single share is sufficient.
+
 SECRETS_ADMIN_KEY = os.environ.get("SECRETS_ADMIN_KEY", "")
 SECRETS_DB_PATH = os.environ.get(
     "SECRETS_DB_PATH",
     str(Path(__file__).parent.parent / "data" / "vault.db"),
 )
 
+# Collect key shares (SECRETS_KEY_SHARE_1, SECRETS_KEY_SHARE_2, …)
+_key_shares = sorted(
+    (k, v)
+    for k, v in os.environ.items()
+    if k.startswith("SECRETS_KEY_SHARE_") and v
+)
+
+if _key_shares:
+    _master_passphrase = combine_key_shares([v for _, v in _key_shares])
+else:
+    _master_passphrase = os.environ.get("SECRETS_MASTER_KEY", "")
+
 secrets_mgr: SecretsManager | None = None
-if SECRETS_MASTER_KEY:
+if _master_passphrase:
     Path(SECRETS_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     _db = SecretsDatabase(SECRETS_DB_PATH)
-    secrets_mgr = SecretsManager(_db, SECRETS_MASTER_KEY)
+    secrets_mgr = SecretsManager(_db, _master_passphrase)
 
 # Bot service URL (required for making calls)
 BOT_SERVICE_URL = os.environ.get("BOT_SERVICE_URL", "")
