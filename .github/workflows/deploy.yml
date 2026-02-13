@@ -14,9 +14,6 @@ on:
         type: boolean
         default: true
 
-env:
-  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
 jobs:
   deploy-bot:
     name: Deploy Bot Service
@@ -32,6 +29,8 @@ jobs:
 
       - name: Deploy
         run: flyctl deploy --config fly.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BOT }}
 
   deploy-mcp:
     name: Deploy MCP Server
@@ -49,6 +48,8 @@ jobs:
       - name: Deploy
         working-directory: mcp
         run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_MCP }}
 
   smoke-test:
     name: Smoke Tests
