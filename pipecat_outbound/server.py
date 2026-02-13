@@ -34,6 +34,8 @@ class StartRequest(BaseModel):
     phone_number: str
     caller_id: str | None = None
     room_name: str | None = None
+    instructions: str | None = None
+    secrets: dict[str, str] | None = None
 
 
 @app.post("/start", dependencies=[Depends(verify_api_key)])
@@ -47,6 +49,8 @@ async def start(request: StartRequest):
             token=request.token,
             phone_number=request.phone_number,
             caller_id=request.caller_id,
+            instructions=request.instructions,
+            secrets=request.secrets,
             handle_sigint=False,
         )
     except Exception:

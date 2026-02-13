@@ -116,6 +116,8 @@ async def run_bot(
     token: str,
     phone_number: str,
     caller_id: str | None = None,
+    instructions: str | None = None,
+    secrets: dict[str, str] | None = None,
     handle_sigint: bool = True,
 ) -> None:
     """
@@ -126,6 +128,8 @@ async def run_bot(
         token: Daily room token
         phone_number: Phone number to dial (E.164 format)
         caller_id: Optional caller ID to display
+        instructions: Natural language instructions describing the goal of the call
+        secrets: Key-value pairs of sensitive info the bot may reference during the call
         handle_sigint: Whether to handle SIGINT signals
     """
     transport = DailyTransport(
@@ -152,8 +156,19 @@ async def run_bot(
 
     llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"))
 
-    # Initialize LLM context with PATY system prompt
-    messages = [{"role": "system", "content": PATY_SYSTEM_PROMPT}]
+    # Build system prompt, appending instructions and secrets if provided
+    system_prompt = PATY_SYSTEM_PROMPT
+    if instructions:
+        system_prompt += f"\n\nYour task for this call:\n{instructions}"
+    if secrets:
+        secret_lines = "\n".join(f"- {key}: {value}" for key, value in secrets.items())
+        system_prompt += (
+            f"\n\nThe following private details are available for this call. "
+            f"Use them naturally in conversation but do not volunteer them unnecessarily:\n{secret_lines}"
+        )
+
+    # Initialize LLM context with system prompt
+    messages = [{"role": "system", "content": system_prompt}]
     context = LLMContext(messages)
     # Conservative VAD settings for PSTN — higher confidence and start_secs
     # to avoid echo triggering false interruptions.
@@ -256,13 +271,28 @@ async def main():
     parser.add_argument("--token", required=True, help="Daily room token")
     parser.add_argument("--phone", required=True, help="Phone number to call (E.164)")
     parser.add_argument("--caller-id", help="Caller ID to display")
+    parser.add_argument("--instructions", help="Instructions for the bot")
+    parser.add_argument(
+        "--secret",
+        action="append",
+        help="Secret key=value pair (can be repeated)",
+    )
     args = parser.parse_args()
+
+    secrets = None
+    if args.secret:
+        secrets = {}
+        for s in args.secret:
+            key, _, value = s.partition("=")
+            secrets[key] = value
 
     await run_bot(
         room_url=args.room_url,
         token=args.token,
         phone_number=args.phone,
         caller_id=args.caller_id,
+        instructions=args.instructions,
+        secrets=secrets,
     )
 
 
