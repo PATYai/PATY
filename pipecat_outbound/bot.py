@@ -195,7 +195,7 @@ async def run_bot(
     turn_observer = TurnTrackingObserver()
 
     @turn_observer.event_handler("on_turn_ended")
-    async def on_turn_ended(turn_number, duration, was_interrupted):
+    async def on_turn_ended(observer, turn_number, duration, was_interrupted):
         status = "interrupted" if was_interrupted else "completed"
         logger.info(f"Turn {turn_number} {status} after {duration:.2f}s")
 

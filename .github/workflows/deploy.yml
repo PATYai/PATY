@@ -30,16 +30,6 @@ jobs:
       - name: Setup Fly CLI
         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Set secrets
-        run: |
-          flyctl secrets set --config fly.toml \
-            DAILY_API_KEY="${{ secrets.DAILY_API_KEY }}" \
-            OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
-            CARTESIA_API_KEY="${{ secrets.CARTESIA_API_KEY }}" \
-            ASSEMBLYAI_API_KEY="${{ secrets.ASSEMBLYAI_API_KEY }}" \
-            BOT_API_KEY="${{ secrets.BOT_API_KEY }}" \
-            --stage
-
       - name: Deploy
         run: flyctl deploy --config fly.toml --remote-only
 
@@ -55,16 +45,6 @@ jobs:
 
       - name: Setup Fly CLI
         uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Set secrets
-        working-directory: mcp
-        run: |
-          flyctl secrets set \
-            DAILY_API_KEY="${{ secrets.DAILY_API_KEY }}" \
-            BOT_SERVICE_URL="https://paty-stage-bot.fly.dev" \
-            BOT_API_KEY="${{ secrets.BOT_API_KEY }}" \
-            MCP_API_KEY="${{ secrets.MCP_API_KEY }}" \
-            --stage
 
       - name: Deploy
         working-directory: mcp
