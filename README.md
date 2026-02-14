@@ -9,6 +9,12 @@
 A voice assistant focused on self-hosting.
 ## 🚧 Project Structure
 
+You can use PATY now. Plug it into ChatGPT or Claude with the MCP server.
+```
+https://paty-stage-mcp.fly.dev/mcp
+```
+No authentication required.
+
 This project consists of two components:
 
 | Component | Description |
