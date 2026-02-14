@@ -6,7 +6,7 @@
 └───┘   █        █   █     ██       ██
         █        █   █     ██       ██
 ```
-It's like LiteLLM but for voice projects.
+A voice assistant focused on self-hosting.
 ## 🚧 Project Structure
 
 This project consists of two components:
