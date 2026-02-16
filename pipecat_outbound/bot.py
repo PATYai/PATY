@@ -10,8 +10,10 @@ import asyncio
 import json
 import os
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
+import yaml
 from dotenv import load_dotenv
 from loguru import logger
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
@@ -48,6 +50,26 @@ from pipecat.utils.tracing.setup import setup_tracing
 
 load_dotenv("../.env.local")
 load_dotenv(".env.local")
+
+
+def _load_config() -> dict:
+    """Load telephony.yaml config, resolving ${ENV_VAR} references."""
+    config_path = Path(__file__).parent / "telephony.yaml"
+    if not config_path.exists():
+        return {}
+    raw = config_path.read_text()
+    # Resolve ${VAR} placeholders from environment
+    import re
+
+    def _resolve(match):
+        return os.getenv(match.group(1), match.group(0))
+
+    resolved = re.sub(r"\$\{(\w+)}", _resolve, raw)
+    return yaml.safe_load(resolved) or {}
+
+
+CONFIG = _load_config()
+
 
 # OpenTelemetry tracing — reads OTEL_EXPORTER_OTLP_ENDPOINT and
 # OTEL_EXPORTER_OTLP_HEADERS from env automatically.
@@ -208,9 +230,10 @@ async def run_bot(
         connection_params=AssemblyAIConnectionParams(sample_rate=8000),
     )
 
+    tts_config = CONFIG.get("tts", {})
     tts = CartesiaTTSService(
-        api_key=os.getenv("CARTESIA_API_KEY", ""),
-        voice_id="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",  # Friendly voice
+        api_key=tts_config.get("api_key") or os.getenv("CARTESIA_API_KEY", ""),
+        voice_id=tts_config.get("voice_id", "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"),
     )
 
     llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"))
