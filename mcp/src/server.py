@@ -194,6 +194,9 @@ async def make_call(
     """
     Initiate an outbound call to the specified phone number using Daily.
 
+    The call starts asynchronously — use get_transcript() to monitor progress
+    and send_instruction() to steer the bot mid-call.
+
     Args:
         phone_number: The phone number to call (E.164 format, e.g., +14155551234)
         instructions: Natural language instructions for the bot describing the goal of the call
@@ -218,7 +221,7 @@ async def make_call(
         # Generate call ID
         call_id = room_name or f"paty-call-{uuid.uuid4().hex[:8]}"
 
-        # Trigger bot service via HTTP POST
+        # Trigger bot service via HTTP POST (non-blocking)
         headers = {"Content-Type": "application/json"}
         if BOT_API_KEY:
             headers["Authorization"] = f"Bearer {BOT_API_KEY}"
@@ -233,8 +236,7 @@ async def make_call(
             "secrets": secrets,
         }
 
-        # Use a long timeout since the bot blocks until the call ends
-        timeout = aiohttp.ClientTimeout(total=3600)
+        timeout = aiohttp.ClientTimeout(total=30)
         async with (
             aiohttp.ClientSession(timeout=timeout) as session,
             session.post(
@@ -246,11 +248,13 @@ async def make_call(
             if resp.status != 200:
                 error = await resp.text()
                 raise ValueError(f"Failed to start bot: {error}")
+            result = await resp.json()
 
-        # Build response message
-        if dialout_enabled:
-            message = f"Call initiated to {phone_number}"
-        else:
+        message = (
+            f"Call started to {phone_number}. "
+            f"Use get_transcript('{room_info['room_name']}') to monitor."
+        )
+        if not dialout_enabled:
             message = (
                 f"Room created but PSTN dial-out not available on your Daily plan. "
                 f"Bot started in room {room_info['room_name']}. "
@@ -266,6 +270,136 @@ async def make_call(
             "caller_id": caller_id,
             "dialout_enabled": dialout_enabled,
             "message": message,
+            "bot_status": result.get("status"),
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+@mcp.tool()
+async def get_transcript(
+    room_name: str,
+    since: int = 0,
+) -> dict:
+    """
+    Get real-time transcript events from an active or recently ended call.
+
+    Poll this periodically to monitor the conversation. Use the returned
+    next_index as the since parameter on subsequent calls for incremental updates.
+
+    Args:
+        room_name: The room name returned by make_call
+        since: Event index to start from (use next_index from previous response)
+
+    Returns:
+        active: whether the call is still in progress
+        events: list of transcript events since the given index
+        next_index: pass this as since on next poll
+    """
+    try:
+        if not BOT_SERVICE_URL:
+            raise ValueError("BOT_SERVICE_URL environment variable not set")
+
+        headers = {}
+        if BOT_API_KEY:
+            headers["Authorization"] = f"Bearer {BOT_API_KEY}"
+
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with (
+            aiohttp.ClientSession(timeout=timeout) as session,
+            session.get(
+                f"{BOT_SERVICE_URL}/transcript/{room_name}",
+                headers=headers,
+                params={"since": since},
+            ) as resp,
+        ):
+            if resp.status == 404:
+                return {
+                    "success": False,
+                    "error": f"No active session for '{room_name}'",
+                }
+            if resp.status != 200:
+                error = await resp.text()
+                raise ValueError(f"Failed to get transcript: {error}")
+            data = await resp.json()
+
+        return {
+            "success": True,
+            "active": data["active"],
+            "events": data["events"],
+            "next_index": data["next_index"],
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+@mcp.tool()
+async def send_instruction(
+    room_name: str,
+    instruction: str,
+    immediate: bool = False,
+) -> dict:
+    """
+    Inject a new instruction into a running call's bot.
+
+    Use this to steer the bot mid-call, e.g., "wrap up the conversation"
+    or "ask about their availability on Tuesday instead".
+
+    Args:
+        room_name: The room name returned by make_call
+        instruction: The instruction text to inject as a system message
+        immediate: If True, the bot acts on it right away (interrupts current flow).
+                   If False (default), the instruction takes effect on the next turn.
+
+    Returns:
+        A dictionary indicating success or failure
+    """
+    try:
+        if not BOT_SERVICE_URL:
+            raise ValueError("BOT_SERVICE_URL environment variable not set")
+
+        headers = {"Content-Type": "application/json"}
+        if BOT_API_KEY:
+            headers["Authorization"] = f"Bearer {BOT_API_KEY}"
+
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with (
+            aiohttp.ClientSession(timeout=timeout) as session,
+            session.post(
+                f"{BOT_SERVICE_URL}/instruct/{room_name}",
+                headers=headers,
+                json={"instruction": instruction, "immediate": immediate},
+            ) as resp,
+        ):
+            if resp.status == 404:
+                return {
+                    "success": False,
+                    "error": f"No active session for '{room_name}'",
+                }
+            if resp.status == 410:
+                return {"success": False, "error": "Call has ended"}
+            if resp.status == 503:
+                return {
+                    "success": False,
+                    "error": "Pipeline not yet ready, try again shortly",
+                }
+            if resp.status != 200:
+                error = await resp.text()
+                raise ValueError(f"Failed to send instruction: {error}")
+            data = await resp.json()
+
+        return {
+            "success": True,
+            "status": data.get("status"),
+            "immediate": data.get("immediate"),
         }
 
     except Exception as e:
