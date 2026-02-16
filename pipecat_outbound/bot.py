@@ -230,10 +230,12 @@ async def run_bot(
         connection_params=AssemblyAIConnectionParams(sample_rate=8000),
     )
 
-    tts_config = CONFIG.get("tts", {})
+    cartesia_config = CONFIG.get("tts", {}).get("provider", {}).get("cartesia", {})
     tts = CartesiaTTSService(
-        api_key=tts_config.get("api_key") or os.getenv("CARTESIA_API_KEY", ""),
-        voice_id=tts_config.get("voice_id", "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"),
+        api_key=cartesia_config.get("api_key") or os.getenv("CARTESIA_API_KEY", ""),
+        voice_id=cartesia_config.get(
+            "voice_id", "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
+        ),
     )
 
     llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"))
