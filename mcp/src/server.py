@@ -4,9 +4,10 @@ PATY MCP Server - Control the PATY voice agent via MCP tools.
 This server exposes tools for making outbound calls using Daily and Pipecat.
 The bot runs as a separate Fly.io service, triggered via HTTP POST.
 
-Authentication:
-    Set MCP_API_KEY environment variable to require Bearer token authentication.
-    If not set, the server runs without authentication (not recommended for production).
+Authentication (checked in order):
+    1. MCP_AUTH_DISABLED=true  → no auth (dev mode)
+    2. CLERK_JWKS_URL + CLERK_ISSUER  → Clerk JWT verification
+    3. MCP_API_KEY  → static Bearer token (legacy/testing)
 """
 
 import os
@@ -14,9 +15,11 @@ import time
 import uuid
 
 import aiohttp
+import jwt
 from dotenv import load_dotenv
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
+from fastmcp.server.dependencies import get_access_token
 
 
 class ApiKeyVerifier(TokenVerifier):
@@ -35,23 +38,64 @@ class ApiKeyVerifier(TokenVerifier):
         return None
 
 
+class ClerkJWTVerifier(TokenVerifier):
+    """Verify Clerk-issued JWTs using JWKS (RS256)."""
+
+    def __init__(
+        self, jwks_url: str, issuer: str, audience: str | None = None
+    ):
+        self.jwks_url = jwks_url
+        self.issuer = issuer
+        self.audience = audience
+        self._jwks_client = jwt.PyJWKClient(jwks_url, cache_keys=True)
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        try:
+            signing_key = self._jwks_client.get_signing_key_from_jwt(token)
+            payload = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["RS256"],
+                issuer=self.issuer,
+                audience=self.audience,
+                options={"verify_aud": self.audience is not None},
+            )
+            return AccessToken(
+                token=token,
+                client_id=payload["sub"],
+                scopes=["all"],
+                claims=payload,
+            )
+        except jwt.PyJWTError:
+            return None
+
+
 # Load environment from root .env.local
 load_dotenv("../.env.local")
 load_dotenv(".env.local")
 
-# Configure authentication (required by default)
-# Set MCP_AUTH_DISABLED=true to explicitly disable auth (e.g., for Cloud Run with IAM)
+# Configure authentication (checked in priority order)
 auth_disabled = os.environ.get("MCP_AUTH_DISABLED", "").lower() == "true"
+clerk_jwks_url = os.environ.get("CLERK_JWKS_URL")
+clerk_issuer = os.environ.get("CLERK_ISSUER")
 api_key = os.environ.get("MCP_API_KEY")
 
 if auth_disabled:
     auth_provider = None
+elif clerk_jwks_url and clerk_issuer:
+    auth_provider = ClerkJWTVerifier(
+        jwks_url=clerk_jwks_url,
+        issuer=clerk_issuer,
+        audience=os.environ.get("CLERK_AUDIENCE"),
+    )
 elif api_key:
     auth_provider = ApiKeyVerifier(api_key)
 else:
     raise RuntimeError(
-        "MCP_API_KEY must be set for authentication. "
-        "Set MCP_AUTH_DISABLED=true to explicitly disable auth."
+        "Authentication must be configured. Set one of:\n"
+        "  - CLERK_JWKS_URL + CLERK_ISSUER (Clerk JWT auth)\n"
+        "  - MCP_API_KEY (static API key auth)\n"
+        "  - MCP_AUTH_DISABLED=true (no auth, dev only)"
     )
 
 mcp = FastMCP("PATY Control", auth=auth_provider)
@@ -59,9 +103,19 @@ mcp = FastMCP("PATY Control", auth=auth_provider)
 # Bot service URL (required for making calls)
 BOT_SERVICE_URL = os.environ.get("BOT_SERVICE_URL", "")
 
-
 # Bot service auth key (for service-to-service auth)
 BOT_API_KEY = os.environ.get("BOT_API_KEY", "")
+
+
+def get_user_id() -> str | None:
+    """Extract the authenticated user's ID from the current request context."""
+    token = get_access_token()
+    return token.client_id if token else None
+
+
+def _user_room_prefix(user_id: str) -> str:
+    """Return the room name prefix for a given user."""
+    return f"paty-{user_id[:8]}-"
 
 
 async def create_daily_room(enable_dialout: bool = True) -> dict:
@@ -194,6 +248,9 @@ async def make_call(
     """
     Initiate an outbound call to the specified phone number using Daily.
 
+    The call starts asynchronously — use get_transcript() to monitor progress
+    and send_instruction() to steer the bot mid-call.
+
     Args:
         phone_number: The phone number to call (E.164 format, e.g., +14155551234)
         instructions: Natural language instructions for the bot describing the goal of the call
@@ -211,12 +268,19 @@ async def make_call(
         if not BOT_SERVICE_URL:
             raise ValueError("BOT_SERVICE_URL environment variable not set")
 
+        user_id = get_user_id()
+
         # Create Daily room
         room_info = await create_daily_room()
         dialout_enabled = room_info.get("dialout_enabled", False)
 
-        # Generate call ID
-        call_id = room_name or f"paty-call-{uuid.uuid4().hex[:8]}"
+        # Generate call ID, scoped to user when authenticated
+        if room_name:
+            call_id = room_name
+        elif user_id:
+            call_id = f"{_user_room_prefix(user_id)}{uuid.uuid4().hex[:8]}"
+        else:
+            call_id = f"paty-call-{uuid.uuid4().hex[:8]}"
 
         # Trigger bot service via HTTP POST
         headers = {"Content-Type": "application/json"}
@@ -231,6 +295,7 @@ async def make_call(
             "room_name": room_info["room_name"],
             "instructions": instructions,
             "secrets": secrets,
+            "user_id": user_id,
         }
 
         # Use a long timeout since the bot blocks until the call ends
@@ -287,6 +352,14 @@ async def end_call(room_name: str) -> dict:
         A dictionary indicating success or failure
     """
     try:
+        # Scope check: authenticated users can only end their own rooms
+        user_id = get_user_id()
+        if user_id and not room_name.startswith(_user_room_prefix(user_id)):
+            return {
+                "success": False,
+                "error": f"Room '{room_name}' does not belong to you",
+            }
+
         await delete_daily_room(room_name)
 
         return {
@@ -310,11 +383,17 @@ async def list_rooms() -> dict:
     """
     try:
         rooms = await list_daily_rooms()
+        user_id = get_user_id()
+        prefix = _user_room_prefix(user_id) if user_id else None
 
         paty_rooms = []
         for room in rooms:
+            name = room.get("name", "")
+            # Filter to only this user's rooms when authenticated
+            if prefix and not name.startswith(prefix):
+                continue
             room_info = {
-                "name": room.get("name"),
+                "name": name,
                 "url": room.get("url"),
                 "created_at": room.get("created_at"),
                 "config": room.get("config", {}),
@@ -345,6 +424,14 @@ async def get_call_status(room_name: str) -> dict:
         A dictionary containing the room status and call information
     """
     try:
+        # Scope check: authenticated users can only see their own rooms
+        user_id = get_user_id()
+        if user_id and not room_name.startswith(_user_room_prefix(user_id)):
+            return {
+                "success": False,
+                "error": f"Room '{room_name}' not found",
+            }
+
         room = await get_daily_room(room_name)
 
         if not room:

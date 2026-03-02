@@ -36,12 +36,16 @@ class StartRequest(BaseModel):
     room_name: str | None = None
     instructions: str | None = None
     secrets: dict[str, str] | None = None
+    user_id: str | None = None
 
 
 @app.post("/start", dependencies=[Depends(verify_api_key)])
 async def start(request: StartRequest):
     """Start a bot instance. Blocks until the call ends."""
-    logger.info(f"Starting bot for room {request.room_name}, phone {request.phone_number}")
+    logger.info(
+        f"Starting bot for room {request.room_name}, "
+        f"phone {request.phone_number}, user {request.user_id}"
+    )
 
     try:
         await run_bot(
