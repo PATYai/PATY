@@ -43,9 +43,7 @@ class ApiKeyVerifier(TokenVerifier):
 class ClerkJWTVerifier(TokenVerifier):
     """Verify Clerk-issued JWTs using JWKS (RS256)."""
 
-    def __init__(
-        self, jwks_url: str, issuer: str, audience: str | None = None
-    ):
+    def __init__(self, jwks_url: str, issuer: str, audience: str | None = None):
         self.jwks_url = jwks_url
         self.issuer = issuer
         self.audience = audience
