@@ -7,14 +7,24 @@ This bot uses Daily for transport and implements the PATY protocol
 """
 
 import asyncio
+import json
 import os
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
+import yaml
 from dotenv import load_dotenv
 from loguru import logger
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
+from pipecat.frames.frames import (
+    LLMFullResponseEndFrame,
+    LLMTextFrame,
+    TranscriptionFrame,
+)
+from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.observers.loggers.metrics_log_observer import MetricsLogObserver
 from pipecat.observers.turn_tracking_observer import TurnTrackingObserver
 from pipecat.pipeline.pipeline import Pipeline
@@ -41,6 +51,26 @@ from pipecat.utils.tracing.setup import setup_tracing
 load_dotenv("../.env.local")
 load_dotenv(".env.local")
 
+
+def _load_config() -> dict:
+    """Load telephony.yaml config, resolving ${ENV_VAR} references."""
+    config_path = Path(__file__).parent / "telephony.yaml"
+    if not config_path.exists():
+        return {}
+    raw = config_path.read_text()
+    # Resolve ${VAR} placeholders from environment
+    import re
+
+    def _resolve(match):
+        return os.getenv(match.group(1), match.group(0))
+
+    resolved = re.sub(r"\$\{(\w+)}", _resolve, raw)
+    return yaml.safe_load(resolved) or {}
+
+
+CONFIG = _load_config()
+
+
 # OpenTelemetry tracing — reads OTEL_EXPORTER_OTLP_ENDPOINT and
 # OTEL_EXPORTER_OTLP_HEADERS from env automatically.
 # Local: defaults to localhost:4317 (Jaeger). Prod: set env vars for Honeycomb.
@@ -58,6 +88,53 @@ You strictly adhere to the PATY protocol (Please And Thank You):
 Your responses will be read aloud, so keep them conversational and avoid special characters.
 Start by greeting the caller warmly and introducing yourself.
 """
+
+
+class TranscriptObserver(BaseObserver):
+    """Observer that captures conversation turns and pushes them to a queue.
+
+    Listens for TranscriptionFrame (user speech) and LLMTextFrame/LLMFullResponseEndFrame
+    (assistant responses) to reconstruct conversation turns as NDJSON-ready dicts.
+    """
+
+    def __init__(self, queue: asyncio.Queue, **kwargs):
+        super().__init__(**kwargs)
+        self._queue = queue
+        self._turn_number = 0
+        self._current_user_text = ""
+        self._current_assistant_chunks: list[str] = []
+
+    async def on_push_frame(self, data: FramePushed):
+        frame = data.frame
+
+        if isinstance(frame, TranscriptionFrame) and frame.text.strip():
+            # Accumulate user speech (multiple transcription frames per turn)
+            self._current_user_text = frame.text
+            self._turn_number += 1
+            event = {
+                "type": "transcript",
+                "turn": self._turn_number,
+                "role": "user",
+                "text": frame.text,
+            }
+            logger.debug(f"Transcript event: {json.dumps(event)}")
+            await self._queue.put(event)
+
+        elif isinstance(frame, LLMTextFrame):
+            self._current_assistant_chunks.append(frame.text)
+
+        elif isinstance(frame, LLMFullResponseEndFrame):
+            if self._current_assistant_chunks:
+                full_response = "".join(self._current_assistant_chunks)
+                event = {
+                    "type": "transcript",
+                    "turn": self._turn_number,
+                    "role": "assistant",
+                    "text": full_response,
+                }
+                logger.debug(f"Transcript event: {json.dumps(event)}")
+                await self._queue.put(event)
+                self._current_assistant_chunks = []
 
 
 class DialoutManager:
@@ -119,6 +196,8 @@ async def run_bot(
     instructions: str | None = None,
     secrets: dict[str, str] | None = None,
     handle_sigint: bool = True,
+    transcript_queue: asyncio.Queue | None = None,
+    on_pipeline_ready: Callable[[PipelineTask], None] | None = None,
 ) -> None:
     """
     Run the PATY voice bot for an outbound call.
@@ -131,6 +210,8 @@ async def run_bot(
         instructions: Natural language instructions describing the goal of the call
         secrets: Key-value pairs of sensitive info the bot may reference during the call
         handle_sigint: Whether to handle SIGINT signals
+        transcript_queue: Optional queue to receive real-time transcript events
+        on_pipeline_ready: Optional callback invoked with the PipelineTask once created
     """
     transport = DailyTransport(
         room_url,
@@ -149,9 +230,12 @@ async def run_bot(
         connection_params=AssemblyAIConnectionParams(sample_rate=8000),
     )
 
+    cartesia_config = CONFIG.get("tts", {}).get("provider", {}).get("cartesia", {})
     tts = CartesiaTTSService(
-        api_key=os.getenv("CARTESIA_API_KEY", ""),
-        voice_id="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",  # Friendly voice
+        api_key=cartesia_config.get("api_key") or os.getenv("CARTESIA_API_KEY", ""),
+        voice_id=cartesia_config.get(
+            "voice_id", "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
+        ),
     )
 
     llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"))
@@ -214,6 +298,10 @@ async def run_bot(
         status = "interrupted" if was_interrupted else "completed"
         logger.info(f"Turn {turn_number} {status} after {duration:.2f}s")
 
+    observers = [MetricsLogObserver(), turn_observer]
+    if transcript_queue is not None:
+        observers.append(TranscriptObserver(transcript_queue))
+
     task = PipelineTask(
         pipeline,
         params=PipelineParams(
@@ -223,8 +311,11 @@ async def run_bot(
             audio_out_sample_rate=8000,
         ),
         enable_tracing=True,
-        observers=[MetricsLogObserver(), turn_observer],
+        observers=observers,
     )
+
+    if on_pipeline_ready is not None:
+        on_pipeline_ready(task)
 
     # Initialize dialout manager
     dialout_manager = DialoutManager(transport, phone_number, caller_id)
@@ -238,6 +329,8 @@ async def run_bot(
     async def on_dialout_answered(transport, data):
         logger.info(f"Dial-out answered: {data}")
         dialout_manager.mark_successful()
+        if transcript_queue is not None:
+            await transcript_queue.put({"type": "status", "event": "dialout_answered"})
         # Prompt the bot to greet the caller
         from pipecat.frames.frames import LLMRunFrame
 

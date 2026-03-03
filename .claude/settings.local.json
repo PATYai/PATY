@@ -17,13 +17,14 @@
       "Bash(./scripts/deploy-bot.sh:*)",
       "mcp__paty-control__make_call",
       "Bash(gcloud run services logs read:*)",
-      "Bash(gh run view:*)"
+      "Bash(gh run view:*)",
+      "mcp__paty-control-local__get_transcript"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "paty-control",
     "livekit-docs",
     "paty-control-local"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }
