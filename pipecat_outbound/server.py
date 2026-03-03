@@ -43,6 +43,7 @@ class StartRequest(BaseModel):
     room_name: str | None = None
     instructions: str | None = None
     secrets: dict[str, str] | None = None
+    user_id: str | None = None
 
 
 class InstructRequest(BaseModel):
@@ -104,7 +105,10 @@ async def _drain_transcript(session: BotSession) -> None:
 async def start(request: StartRequest):
     """Start a bot instance. Returns immediately with room info."""
     room_name = request.room_name or "unknown"
-    logger.info(f"Starting bot for room {room_name}, phone {request.phone_number}")
+    logger.info(
+        f"Starting bot for room {room_name}, "
+        f"phone {request.phone_number}, user {request.user_id}"
+    )
 
     session = BotSession(room_name=room_name)
     active_sessions[room_name] = session
