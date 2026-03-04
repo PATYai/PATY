@@ -1,4 +1,4 @@
-app = "paty-stage-web"
+app = "paty-web"
 primary_region = "ord"
 
 [build]

@@ -99,6 +99,7 @@ jobs:
         env:
           BOT_URL: https://paty-stage-bot.fly.dev
           MCP_URL: https://paty-stage-mcp.fly.dev
+          WEB_URL: https://paty-web.fly.dev
           MCP_API_KEY: ${{ secrets.MCP_API_KEY }}
           BOT_API_KEY: ${{ secrets.BOT_API_KEY }}
-        run: uv run pytest tests/smoke/test_deployments.py -v -m smoke
+        run: uv run pytest tests/smoke/ -v -m smoke
