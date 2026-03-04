@@ -3,6 +3,9 @@ primary_region = "ord"
 
 [build]
   dockerfile = "Dockerfile"
+  [build.args]
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = ""   # fill in before first deploy
+    NEXT_PUBLIC_MCP_SERVER_URL = "https://paty-stage-mcp.fly.dev"
 
 [env]
   PORT = "8080"
