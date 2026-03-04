@@ -1,7 +1,7 @@
 """Smoke tests for the web frontend.
 
 Environment variables:
-    WEB_URL: Web frontend URL (default: https://paty-stage-web.fly.dev)
+    WEB_URL: Web frontend URL (default: https://paty-web.fly.dev)
 """
 
 import os
@@ -9,7 +9,7 @@ import os
 import aiohttp
 import pytest
 
-WEB_URL = os.environ.get("WEB_URL", "https://paty-stage-web.fly.dev")
+WEB_URL = os.environ.get("WEB_URL", "https://paty-web.fly.dev")
 
 
 @pytest.mark.smoke
@@ -30,8 +30,8 @@ async def test_web_landing_page():
 async def test_web_dashboard_redirects_unauthenticated():
     """Dashboard redirects unauthenticated users to sign-in."""
     async with (
-        aiohttp.ClientSession(allow_redirects=False) as session,
-        session.get(f"{WEB_URL}/dashboard") as resp,
+        aiohttp.ClientSession() as session,
+        session.get(f"{WEB_URL}/dashboard", allow_redirects=False) as resp,
     ):
         # Expect a redirect (3xx) to sign-in
         assert resp.status in range(300, 400)
