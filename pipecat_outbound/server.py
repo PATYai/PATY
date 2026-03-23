@@ -14,7 +14,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from loguru import logger
 from pipecat.frames.frames import LLMMessagesAppendFrame
 from pipecat.pipeline.task import PipelineTask
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from pipecat_outbound.bot import run_bot
 
@@ -35,15 +35,28 @@ async def verify_api_key(request: Request):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
+class Target(BaseModel):
+    phone_number: str  # E.164 format
+    who: str  # Name/description of who is being called
+
+
 class StartRequest(BaseModel):
     room_url: str
     token: str
-    phone_number: str
+    target: Target
     caller_id: str | None = None
     room_name: str | None = None
-    instructions: str | None = None
+    goal: str | None = None
+    impersonate: bool = False
+    persona: str | None = None
     secrets: dict[str, str] | None = None
     user_id: str | None = None
+
+    @model_validator(mode="after")
+    def persona_required_when_impersonating(self) -> "StartRequest":
+        if self.impersonate and not self.persona:
+            raise ValueError("persona is required when impersonate=True")
+        return self
 
 
 class InstructRequest(BaseModel):
@@ -107,7 +120,7 @@ async def start(request: StartRequest):
     room_name = request.room_name or "unknown"
     logger.info(
         f"Starting bot for room {room_name}, "
-        f"phone {request.phone_number}, user {request.user_id}"
+        f"target {request.target.phone_number} ({request.target.who}), user {request.user_id}"
     )
 
     session = BotSession(room_name=room_name)
@@ -120,9 +133,12 @@ async def start(request: StartRequest):
         run_bot(
             room_url=request.room_url,
             token=request.token,
-            phone_number=request.phone_number,
+            target_phone=request.target.phone_number,
+            target_who=request.target.who,
             caller_id=request.caller_id,
-            instructions=request.instructions,
+            goal=request.goal,
+            impersonate=request.impersonate,
+            persona=request.persona,
             secrets=request.secrets,
             handle_sigint=False,
             transcript_queue=session.transcript_queue,
