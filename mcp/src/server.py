@@ -241,7 +241,7 @@ async def get_daily_room(room_name: str) -> dict | None:
 async def make_call(
     target_phone: str,
     target_who: str,
-    goal: str | None = None,
+    goal: str,
     impersonate: bool = False,
     persona: str | None = None,
     secrets: dict[str, str] | None = None,

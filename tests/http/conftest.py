@@ -91,7 +91,7 @@ def mock_run_bot(monkeypatch):
         token,
         target_phone,
         target_who,
-        goal=None,
+        goal,
         impersonate=False,
         persona=None,
         secrets=None,
@@ -104,10 +104,7 @@ def mock_run_bot(monkeypatch):
         if impersonate and persona:
             text = f"Hello {target_who}, I'm calling on behalf of {persona}."
         else:
-            text = (
-                f"Hello {target_who}! I'm PATY. "
-                f"I'm calling to help with: {goal or 'your request'}."
-            )
+            text = f"Hello {target_who}! I'm PATY. I'm calling to help with: {goal}."
         if transcript_queue is not None:
             await transcript_queue.put(
                 {"type": "transcript", "role": "assistant", "text": text, "turn": 0}

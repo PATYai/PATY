@@ -19,6 +19,7 @@ BASE_START = {
     "token": "test-token",
     "target": BASE_TARGET,
     "room_name": "test-room",
+    "goal": "Confirm the appointment",
 }
 
 
@@ -55,14 +56,26 @@ async def test_start_missing_target(client):
     """target is required — omitting it should return 422."""
     resp = await client.post(
         "/start",
-        json={
-            "room_url": "https://test.daily.co/room",
-            "token": "tok",
-        },
+        json={"room_url": "https://test.daily.co/room", "token": "tok", "goal": "Test"},
     )
     assert resp.status_code == 422
     locs = [tuple(e["loc"]) for e in resp.json()["detail"]]
     assert ("body", "target") in locs
+
+
+async def test_start_missing_goal(client):
+    """goal is required — omitting it should return 422."""
+    resp = await client.post(
+        "/start",
+        json={
+            "room_url": "https://test.daily.co/room",
+            "token": "tok",
+            "target": BASE_TARGET,
+        },
+    )
+    assert resp.status_code == 422
+    locs = [tuple(e["loc"]) for e in resp.json()["detail"]]
+    assert ("body", "goal") in locs
 
 
 async def test_start_impersonation_no_persona(client):
