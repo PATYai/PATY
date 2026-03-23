@@ -9,7 +9,6 @@ Asserts that first-message transcripts reflect the parameters correctly.
 
 import asyncio
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -208,9 +207,7 @@ async def test_transcript_structure(client):
 
     # Incremental poll: since=next_index returns empty events
     next_index = body["next_index"]
-    poll = await client.get(
-        "/transcript/room-structure", params={"since": next_index}
-    )
+    poll = await client.get("/transcript/room-structure", params={"since": next_index})
     assert poll.status_code == 200
     poll_body = poll.json()
     assert poll_body["events"] == []
