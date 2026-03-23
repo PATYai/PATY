@@ -239,25 +239,31 @@ async def get_daily_room(room_name: str) -> dict | None:
 
 @mcp.tool()
 async def make_call(
-    phone_number: str,
-    instructions: str | None = None,
+    target_phone: str,
+    target_who: str,
+    goal: str | None = None,
+    impersonate: bool = False,
+    persona: str | None = None,
     secrets: dict[str, str] | None = None,
     caller_id: str | None = None,
     room_name: str | None = None,
 ) -> dict:
     """
-    Initiate an outbound call to the specified phone number using Daily.
+    Initiate an outbound call using Daily.
 
     The call starts asynchronously — use get_transcript() to monitor progress
     and send_instruction() to steer the bot mid-call.
 
     Args:
-        phone_number: The phone number to call (E.164 format, e.g., +14155551234)
-        instructions: Natural language instructions for the bot describing the goal of the call
-                      (e.g., "Schedule a vet appointment for this Saturday after noon")
+        target_phone: The phone number to call (E.164 format, e.g., +14155551234)
+        target_who: Name or description of who is being called (e.g., "Dr. Smith's office")
+        goal: Natural language description of what PATY should achieve on the call
+              (e.g., "Schedule a vet appointment for this Saturday after noon")
+        impersonate: Whether the bot should present itself as a persona instead of as PATY
+        persona: Who the bot is impersonating (required when impersonate=True,
+                 e.g., "Sarah from Acme Dental")
         secrets: Key-value pairs of sensitive information the bot may need during the call
-                 (e.g., {"pet_name": "zipper", "phone_number": "9706330939"}).
-                 These are injected into the bot's context but not logged.
+                 (e.g., {"account_pin": "1234"}). Injected into context but not logged.
         caller_id: The caller ID to display (must be a verified number on your Daily account)
         room_name: Optional room name for the call (auto-generated if not provided)
 
@@ -265,6 +271,9 @@ async def make_call(
         A dictionary containing the call details and room information
     """
     try:
+        if impersonate and not persona:
+            raise ValueError("persona is required when impersonate=True")
+
         if not BOT_SERVICE_URL:
             raise ValueError("BOT_SERVICE_URL environment variable not set")
 
@@ -290,10 +299,12 @@ async def make_call(
         payload = {
             "room_url": room_info["room_url"],
             "token": room_info["token"],
-            "phone_number": phone_number,
+            "target": {"phone_number": target_phone, "who": target_who},
             "caller_id": caller_id,
             "room_name": room_info["room_name"],
-            "instructions": instructions,
+            "goal": goal,
+            "impersonate": impersonate,
+            "persona": persona,
             "secrets": secrets,
             "user_id": user_id,
         }
@@ -316,7 +327,7 @@ async def make_call(
 
         if dialout_enabled:
             message = (
-                f"Call started to {phone_number}. "
+                f"Call started to {target_who} ({target_phone}). "
                 f"Use get_transcript('{actual_room_name}') to monitor."
             )
         else:
@@ -331,7 +342,8 @@ async def make_call(
             "call_id": call_id,
             "room_name": actual_room_name,
             "room_url": room_info["room_url"],
-            "phone_number": phone_number,
+            "target_phone": target_phone,
+            "target_who": target_who,
             "caller_id": caller_id,
             "dialout_enabled": dialout_enabled,
             "message": message,

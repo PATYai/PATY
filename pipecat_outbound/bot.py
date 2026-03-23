@@ -191,9 +191,12 @@ class DialoutManager:
 async def run_bot(
     room_url: str,
     token: str,
-    phone_number: str,
+    target_phone: str,
+    target_who: str,
     caller_id: str | None = None,
-    instructions: str | None = None,
+    goal: str | None = None,
+    impersonate: bool = False,
+    persona: str | None = None,
     secrets: dict[str, str] | None = None,
     handle_sigint: bool = True,
     transcript_queue: asyncio.Queue | None = None,
@@ -205,9 +208,12 @@ async def run_bot(
     Args:
         room_url: Daily room URL to join
         token: Daily room token
-        phone_number: Phone number to dial (E.164 format)
+        target_phone: Phone number to dial (E.164 format)
+        target_who: Name/description of who is being called
         caller_id: Optional caller ID to display
-        instructions: Natural language instructions describing the goal of the call
+        goal: Natural language description of the call's objective
+        impersonate: Whether the bot should present itself as a persona
+        persona: Who the bot is impersonating (required when impersonate=True)
         secrets: Key-value pairs of sensitive info the bot may reference during the call
         handle_sigint: Whether to handle SIGINT signals
         transcript_queue: Optional queue to receive real-time transcript events
@@ -240,10 +246,16 @@ async def run_bot(
 
     llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"))
 
-    # Build system prompt, appending instructions and secrets if provided
+    # Build system prompt
     system_prompt = PATY_SYSTEM_PROMPT
-    if instructions:
-        system_prompt += f"\n\nYour task for this call:\n{instructions}"
+    system_prompt += f"\n\nYou are calling {target_who}."
+    if impersonate and persona:
+        system_prompt += (
+            f"\n\nFor this call, you are acting as {persona}. "
+            f"Introduce yourself as {persona} and maintain that identity throughout."
+        )
+    if goal:
+        system_prompt += f"\n\nYour goal for this call:\n{goal}"
     if secrets:
         secret_lines = "\n".join(f"- {key}: {value}" for key, value in secrets.items())
         system_prompt += (
@@ -318,7 +330,7 @@ async def run_bot(
         on_pipeline_ready(task)
 
     # Initialize dialout manager
-    dialout_manager = DialoutManager(transport, phone_number, caller_id)
+    dialout_manager = DialoutManager(transport, target_phone, caller_id)
 
     @transport.event_handler("on_joined")
     async def on_joined(transport, data):
@@ -362,9 +374,20 @@ async def main():
     parser = argparse.ArgumentParser(description="PATY Voice Bot")
     parser.add_argument("--room-url", required=True, help="Daily room URL")
     parser.add_argument("--token", required=True, help="Daily room token")
-    parser.add_argument("--phone", required=True, help="Phone number to call (E.164)")
+    parser.add_argument(
+        "--target-phone", required=True, help="Phone number to call (E.164)"
+    )
+    parser.add_argument(
+        "--target-who", required=True, help="Name/description of who is being called"
+    )
     parser.add_argument("--caller-id", help="Caller ID to display")
-    parser.add_argument("--instructions", help="Instructions for the bot")
+    parser.add_argument("--goal", help="Goal for the call")
+    parser.add_argument(
+        "--impersonate", action="store_true", help="Present as a persona"
+    )
+    parser.add_argument(
+        "--persona", help="Who the bot is impersonating (required with --impersonate)"
+    )
     parser.add_argument(
         "--secret",
         action="append",
@@ -382,9 +405,12 @@ async def main():
     await run_bot(
         room_url=args.room_url,
         token=args.token,
-        phone_number=args.phone,
+        target_phone=args.target_phone,
+        target_who=args.target_who,
         caller_id=args.caller_id,
-        instructions=args.instructions,
+        goal=args.goal,
+        impersonate=args.impersonate,
+        persona=args.persona,
         secrets=secrets,
     )
 
