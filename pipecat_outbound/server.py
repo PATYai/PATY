@@ -46,7 +46,7 @@ class StartRequest(BaseModel):
     target: Target
     caller_id: str | None = None
     room_name: str | None = None
-    goal: str | None = None
+    goal: str
     impersonate: bool = False
     persona: str | None = None
     secrets: dict[str, str] | None = None
