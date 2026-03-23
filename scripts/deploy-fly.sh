@@ -21,7 +21,7 @@ deploy_mcp() {
 
 deploy_web() {
     echo "==> Deploying paty-stage-web..."
-    (cd "$ROOT_DIR/web" && fly deploy --remote-only)
+    (cd "$ROOT_DIR/web" && fly deploy --remote-only ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:+--build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY})
     echo "==> paty-stage-web deployed: https://paty-stage-web.fly.dev"
 }
 

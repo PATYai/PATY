@@ -18,7 +18,8 @@
       "mcp__paty-control__make_call",
       "Bash(gcloud run services logs read:*)",
       "Bash(gh run view:*)",
-      "mcp__paty-control-local__get_transcript"
+      "mcp__paty-control-local__get_transcript",
+      "Bash(fly logs:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

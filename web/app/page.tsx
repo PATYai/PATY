@@ -14,7 +14,7 @@ export default function Home() {
         </h1>
         <p className="text-xl text-zinc-500 dark:text-zinc-400">
           Please And Thank You — Voice AI for outbound calls, controlled via
-          Claude Code and MCP clients.
+          ChatGPT and OpenClaw.
         </p>
         <p className="text-base text-zinc-600 dark:text-zinc-400 max-w-lg">
           Make phone calls directly from your AI assistant. Connect PATY to
