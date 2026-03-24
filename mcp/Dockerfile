@@ -1,7 +1,18 @@
 # syntax=docker/dockerfile:1
+
+ARG PYTHON_VERSION=3.13
+
+# Stage 1: Build the ChatGPT mini-app UI (single bundled HTML)
+FROM node:22-alpine AS ui-builder
+WORKDIR /app
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci
+COPY ui/ ./
+RUN npm run build
+
+# Stage 2: Python MCP server
 # TODO: Use hardened images
 # Use the official UV Python base image with Python 3.13 on Debian Bookworm
-ARG PYTHON_VERSION=3.13
 FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm-slim AS base
 
 # Keeps Python from buffering stdout and stderr
@@ -29,6 +40,8 @@ RUN uv sync --locked || uv sync
 
 # Copy application files
 COPY . .
+# Copy built transcript UI from node stage
+COPY --from=ui-builder /app/dist/index.html src/transcript.html
 
 # Change ownership to non-privileged user
 RUN chown -R appuser:appuser /app

@@ -16,8 +16,8 @@ primary_region = "ord"
 
   [http_service.concurrency]
     type = "requests"
-    hard_limit = 2
-    soft_limit = 1
+    hard_limit = 50
+    soft_limit = 25
 
 [[vm]]
   size = "shared-cpu-2x"
