@@ -4,6 +4,29 @@
 
 - **Always lint before considering work done.** Run `uv run --directory mcp ruff check src/` for MCP changes and `uv run ruff check pipecat_outbound/` for bot changes.
 
+## Testing the ChatGPT Mini-App (`mcp/ui`)
+
+The transcript mini-app (`mcp/ui/src/App.tsx`) can be tested locally without ChatGPT using a Playwright-based mock host:
+
+```bash
+cd mcp/ui
+npm install
+npm run build
+node test-local.mjs
+```
+
+`test-local.mjs` serves the built app in an iframe, acts as a mock ChatGPT host (responds to `ui/initialize`, pushes a fake `ui/notifications/tool-result`), and prints the app's rendered content + debug panel.
+
+**What a passing run looks like:**
+- App content shows `PATY · LIVE · paty-test-deadbeef · Dialing…`
+- Host logs show `tools/call` for `get_transcript` being invoked (proves polling started)
+- "Dialing…" is expected — advancing past it requires a real bot session
+
+**Key protocol notes learned during debugging:**
+- `App.connect()` requires an explicit `new PostMessageTransport()` argument (no default)
+- `ontoolresult` receives `{ toolInput, toolResult: CallToolResult, content: [] }` — the actual tool output is in `.toolResult.content`, NOT `.content`
+- `PostMessageTransport(target, source)` — defaults to `window.parent` as target; must be in a real iframe for correct source filtering
+
 ## Overview
 
 PATY (Please And Thank You) is a voice AI project with two components:

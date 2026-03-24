@@ -19,7 +19,17 @@
       "Bash(gcloud run services logs read:*)",
       "Bash(gh run view:*)",
       "mcp__paty-control-local__get_transcript",
-      "Bash(fly logs:*)"
+      "Bash(fly logs:*)",
+      "WebFetch(domain:developers.openai.com)",
+      "Bash(uv pip:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:apps.extensions.modelcontextprotocol.io)",
+      "Bash(npm run:*)",
+      "Bash(npx --yes playwright install chromium)",
+      "Bash(node:*)",
+      "Bash(npm install:*)",
+      "Bash(npx playwright:*)",
+      "Bash(git rm:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -11,9 +11,11 @@ Authentication (checked in order):
 """
 
 import asyncio
+import logging
 import os
 import time
 import uuid
+from pathlib import Path
 
 import aiohttp
 import jwt
@@ -69,6 +71,9 @@ class ClerkJWTVerifier(TokenVerifier):
         except jwt.PyJWTError:
             return None
 
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger("paty.mcp")
 
 # Load environment from root .env.local
 load_dotenv("../.env.local")
@@ -237,7 +242,27 @@ async def get_daily_room(room_name: str) -> dict | None:
         return await resp.json()
 
 
-@mcp.tool()
+_TRANSCRIPT_UI_URI = "ui://paty/transcript"
+_TRANSCRIPT_HTML = Path(__file__).parent / "transcript.html"
+
+
+@mcp.resource(_TRANSCRIPT_UI_URI, mime_type="text/html", name="PATY Transcript")
+def transcript_ui() -> str:
+    """Bundled React app for live call transcript display."""
+    if not _TRANSCRIPT_HTML.exists():
+        log.error(
+            "transcript.html not found at %s — was the UI built?", _TRANSCRIPT_HTML
+        )
+        raise FileNotFoundError(
+            f"transcript.html not found at {_TRANSCRIPT_HTML}. "
+            "Run `npm run build` in mcp/ui and copy dist/index.html to mcp/src/transcript.html."
+        )
+    size = _TRANSCRIPT_HTML.stat().st_size
+    log.info("transcript_ui fetched (%.1f kB)", size / 1024)
+    return _TRANSCRIPT_HTML.read_text()
+
+
+@mcp.tool(meta={"ui": {"resourceUri": _TRANSCRIPT_UI_URI}})
 async def make_call(
     target_phone: str,
     target_who: str,
@@ -324,6 +349,13 @@ async def make_call(
             await resp.json()
 
         actual_room_name = room_info["room_name"]
+        log.info(
+            "make_call succeeded: room=%s target=%s phone=%s dialout=%s",
+            actual_room_name,
+            target_who,
+            target_phone,
+            dialout_enabled,
+        )
 
         if dialout_enabled:
             message = (
@@ -350,6 +382,7 @@ async def make_call(
         }
 
     except Exception as e:
+        log.exception("make_call failed: %s", e)
         return {
             "success": False,
             "error": str(e),
@@ -383,6 +416,10 @@ async def get_transcript(
     try:
         if not BOT_SERVICE_URL:
             raise ValueError("BOT_SERVICE_URL environment variable not set")
+
+        log.info(
+            "get_transcript: room=%s since=%d blocking=%s", room_name, since, blocking
+        )
 
         headers = {}
         if BOT_API_KEY:
@@ -464,6 +501,13 @@ async def get_transcript(
                 raise ValueError(f"Failed to get transcript: {error}")
             data = await resp.json()
 
+        log.info(
+            "get_transcript: room=%s active=%s events=%d next_index=%d",
+            room_name,
+            data["active"],
+            len(data["events"]),
+            data["next_index"],
+        )
         return {
             "success": True,
             "active": data["active"],
@@ -472,6 +516,7 @@ async def get_transcript(
         }
 
     except Exception as e:
+        log.exception("get_transcript failed: room=%s error=%s", room_name, e)
         return {
             "success": False,
             "error": str(e),
