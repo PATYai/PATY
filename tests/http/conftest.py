@@ -22,6 +22,10 @@ import pytest
 # Additional sys.modules mocks (complement the root conftest)
 # ---------------------------------------------------------------------------
 _additional_mocks = [
+    "pipecat.adapters",
+    "pipecat.adapters.schemas",
+    "pipecat.adapters.schemas.function_schema",
+    "pipecat.adapters.schemas.tools_schema",
     "pipecat.frames",
     "pipecat.frames.frames",
     "pipecat.pipeline",
