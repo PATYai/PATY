@@ -48,6 +48,8 @@ from pipecat.turns.user_turn_strategies import (
 )
 from pipecat.utils.tracing.setup import setup_tracing
 
+from pipecat_outbound.prompt import build_system_prompt
+
 load_dotenv("../.env.local")
 load_dotenv(".env.local")
 
@@ -75,19 +77,6 @@ CONFIG = _load_config()
 # OTEL_EXPORTER_OTLP_HEADERS from env automatically.
 # Local: defaults to localhost:4317 (Jaeger). Prod: set env vars for Honeycomb.
 setup_tracing(os.getenv("OTEL_SERVICE_NAME", "paty-bot"), exporter=OTLPSpanExporter())
-
-# PATY system prompt
-PATY_SYSTEM_PROMPT = """
-You are PATY (pronounced Pah-tee), a helpful, low-latency AI assistant making an outbound call.
-You strictly adhere to the PATY protocol (Please And Thank You):
-1. Always maintain a warm, extremely polite, and courteous tone.
-2. If you need to ask the user for more info, start with 'Please'.
-3. When the user provides information, always respond with 'Thank you' or a variation of gratitude.
-4. Keep responses concise to maintain low latency, but never sacrifice manners.
-
-Your responses will be read aloud, so keep them conversational and avoid special characters.
-Start by greeting the caller warmly and introducing yourself.
-"""
 
 
 class TranscriptObserver(BaseObserver):
@@ -201,6 +190,10 @@ async def run_bot(
     handle_sigint: bool = True,
     transcript_queue: asyncio.Queue | None = None,
     on_pipeline_ready: Callable[[PipelineTask], None] | None = None,
+    transport_override=None,
+    stt_override=None,
+    tts_override=None,
+    llm_override=None,
 ) -> None:
     """
     Run the PATY voice bot for an outbound call.
@@ -218,50 +211,58 @@ async def run_bot(
         handle_sigint: Whether to handle SIGINT signals
         transcript_queue: Optional queue to receive real-time transcript events
         on_pipeline_ready: Optional callback invoked with the PipelineTask once created
+        transport_override: Optional transport to use instead of DailyTransport (for testing)
+        stt_override: Optional STT service to use instead of AssemblyAI (for testing)
+        tts_override: Optional TTS service to use instead of Cartesia (for testing)
+        llm_override: Optional LLM service to use instead of OpenAI (for testing)
     """
-    transport = DailyTransport(
-        room_url,
-        token,
-        "PATY Bot",
-        DailyParams(
-            api_key=os.getenv("DAILY_API_KEY"),
-            audio_in_enabled=True,
-            audio_out_enabled=True,
-        ),
-    )
+    if transport_override is not None:
+        transport = transport_override
+    else:
+        transport = DailyTransport(
+            room_url,
+            token,
+            "PATY Bot",
+            DailyParams(
+                api_key=os.getenv("DAILY_API_KEY"),
+                audio_in_enabled=True,
+                audio_out_enabled=True,
+            ),
+        )
 
     # Initialize services
-    stt = AssemblyAISTTService(
-        api_key=os.getenv("ASSEMBLYAI_API_KEY", ""),
-        connection_params=AssemblyAIConnectionParams(sample_rate=8000),
-    )
+    if stt_override is not None:
+        stt = stt_override
+    else:
+        stt = AssemblyAISTTService(
+            api_key=os.getenv("ASSEMBLYAI_API_KEY", ""),
+            connection_params=AssemblyAIConnectionParams(sample_rate=8000),
+        )
 
     cartesia_config = CONFIG.get("tts", {}).get("provider", {}).get("cartesia", {})
-    tts = CartesiaTTSService(
-        api_key=cartesia_config.get("api_key") or os.getenv("CARTESIA_API_KEY", ""),
-        voice_id=cartesia_config.get(
-            "voice_id", "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
-        ),
-    )
+    if tts_override is not None:
+        tts = tts_override
+    else:
+        tts = CartesiaTTSService(
+            api_key=cartesia_config.get("api_key") or os.getenv("CARTESIA_API_KEY", ""),
+            voice_id=cartesia_config.get(
+                "voice_id", "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
+            ),
+        )
 
-    llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"))
+    if llm_override is not None:
+        llm = llm_override
+    else:
+        llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"))
 
     # Build system prompt
-    system_prompt = PATY_SYSTEM_PROMPT
-    system_prompt += f"\n\nYou are calling {target_who}."
-    if impersonate and persona:
-        system_prompt += (
-            f"\n\nFor this call, you are acting as {persona}. "
-            f"Introduce yourself as {persona} and maintain that identity throughout."
-        )
-    if goal:
-        system_prompt += f"\n\nYour goal for this call:\n{goal}"
-    if secrets:
-        secret_lines = "\n".join(f"- {key}: {value}" for key, value in secrets.items())
-        system_prompt += (
-            f"\n\nThe following private details are available for this call. "
-            f"Use them naturally in conversation but do not volunteer them unnecessarily:\n{secret_lines}"
-        )
+    system_prompt = build_system_prompt(
+        target_who=target_who,
+        goal=goal,
+        impersonate=impersonate,
+        persona=persona,
+        secrets=secrets,
+    )
 
     # Initialize LLM context with system prompt
     messages = [{"role": "system", "content": system_prompt}]
@@ -329,39 +330,42 @@ async def run_bot(
     if on_pipeline_ready is not None:
         on_pipeline_ready(task)
 
-    # Initialize dialout manager
-    dialout_manager = DialoutManager(transport, target_phone, caller_id)
+    # Initialize dialout manager (skip when using transport override for testing)
+    if transport_override is None:
+        dialout_manager = DialoutManager(transport, target_phone, caller_id)
 
-    @transport.event_handler("on_joined")
-    async def on_joined(transport, data):
-        logger.info("Bot joined Daily room, initiating dialout...")
-        await dialout_manager.attempt_dialout()
-
-    @transport.event_handler("on_dialout_answered")
-    async def on_dialout_answered(transport, data):
-        logger.info(f"Dial-out answered: {data}")
-        dialout_manager.mark_successful()
-        if transcript_queue is not None:
-            await transcript_queue.put({"type": "status", "event": "dialout_answered"})
-        # Prompt the bot to greet the caller
-        from pipecat.frames.frames import LLMRunFrame
-
-        await task.queue_frames([LLMRunFrame()])
-
-    @transport.event_handler("on_dialout_error")
-    async def on_dialout_error(transport, data: Any):
-        logger.error(f"Dial-out error: {data}")
-        if dialout_manager.should_retry():
-            await asyncio.sleep(1)  # Brief delay before retry
+        @transport.event_handler("on_joined")
+        async def on_joined(transport, data):
+            logger.info("Bot joined Daily room, initiating dialout...")
             await dialout_manager.attempt_dialout()
-        else:
-            logger.error("No more retries allowed, stopping bot.")
-            await task.cancel()
 
-    @transport.event_handler("on_participant_left")
-    async def on_participant_left(transport, participant, reason):
-        logger.info(f"Participant left: {participant}, reason: {reason}")
-        await task.cancel()
+        @transport.event_handler("on_dialout_answered")
+        async def on_dialout_answered(transport, data):
+            logger.info(f"Dial-out answered: {data}")
+            dialout_manager.mark_successful()
+            if transcript_queue is not None:
+                await transcript_queue.put(
+                    {"type": "status", "event": "dialout_answered"}
+                )
+            # Prompt the bot to greet the caller
+            from pipecat.frames.frames import LLMRunFrame
+
+            await task.queue_frames([LLMRunFrame()])
+
+        @transport.event_handler("on_dialout_error")
+        async def on_dialout_error(transport, data: Any):
+            logger.error(f"Dial-out error: {data}")
+            if dialout_manager.should_retry():
+                await asyncio.sleep(1)  # Brief delay before retry
+                await dialout_manager.attempt_dialout()
+            else:
+                logger.error("No more retries allowed, stopping bot.")
+                await task.cancel()
+
+        @transport.event_handler("on_participant_left")
+        async def on_participant_left(transport, participant, reason):
+            logger.info(f"Participant left: {participant}, reason: {reason}")
+            await task.cancel()
 
     runner = PipelineRunner(handle_sigint=handle_sigint)
     await runner.run(task)

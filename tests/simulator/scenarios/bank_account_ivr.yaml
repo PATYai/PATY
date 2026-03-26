@@ -1,0 +1,62 @@
+name: "Bank - Reach Account Specialist"
+type: ivr
+initial_greeting: "Welcome to First National Bank. Para español, oprima dos. For English, press 1 or stay on the line."
+initial_state: language_select
+
+states:
+  language_select:
+    prompt: "For English, press 1 or stay on the line. Para español, oprima dos."
+    transitions:
+      - match: "español|spanish|dos"
+        next: spanish_unsupported
+      # Any English response (including just starting to talk) advances
+      - match: "."
+        next: main_menu
+
+  spanish_unsupported:
+    prompt: "Lo sentimos. Please hold for an agent."
+    terminal: true
+    transfer: true
+
+  main_menu:
+    prompt: "For account information, press 1. For loans, press 2. For fraud or lost card, press 3. To speak with a representative, press 0."
+    transitions:
+      - match: "account|one|1|balance"
+        next: verify_identity
+      - match: "loan|two|2"
+        next: verify_identity
+      - match: "fraud|lost|three|3|stolen"
+        next: fraud_urgent
+      - match: "representative|agent|zero|0|speak|operator"
+        next: verify_identity
+
+  verify_identity:
+    prompt: "For security, please say or enter your 4-digit PIN."
+    transitions:
+      - match: "\\d{4}|pin|four"
+        next: hold_for_agent
+      - match: "don't know|forgot|reset"
+        next: hold_for_agent
+
+  fraud_urgent:
+    prompt: "I'm transferring you to our fraud team immediately. Please hold."
+    terminal: true
+    transfer: true
+
+  hold_for_agent:
+    prompt: "Thank you. Transferring you now. Your estimated wait time is 3 minutes."
+    terminal: true
+    transfer: true
+
+bot_config:
+  target_who: "First National Bank"
+  goal: "Reach an account specialist to discuss account 7890"
+  secrets:
+    pin: "4521"
+    account_number: "7890"
+
+assertions:
+  - type: reached_state
+    state: hold_for_agent
+  - type: max_turns
+    value: 10
