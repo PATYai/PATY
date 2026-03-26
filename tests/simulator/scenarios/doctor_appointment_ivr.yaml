@@ -1,0 +1,48 @@
+name: "Doctor's Office - Book Appointment"
+type: ivr
+initial_greeting: "Thank you for calling Valley Medical. To schedule an appointment, press 1. For prescription refills, press 2. For billing, press 3. For the nurse line, press 4."
+initial_state: main_menu
+
+states:
+  main_menu:
+    prompt: "To schedule an appointment, press 1. For prescription refills, press 2. For billing, press 3. For the nurse line, press 4."
+    transitions:
+      - match: "appointment|schedule|one|1|book"
+        next: appointment_type
+      - match: "prescription|refill|two|2"
+        next: hold_for_agent
+      - match: "billing|three|3"
+        next: hold_for_agent
+      - match: "nurse|four|4"
+        next: hold_for_agent
+
+  appointment_type:
+    prompt: "For a new patient appointment, press 1. For an existing patient, press 2."
+    transitions:
+      - match: "new|one|1"
+        next: hold_for_agent
+      - match: "existing|two|2|patient"
+        next: hold_for_agent
+
+  hold_for_agent:
+    prompt: "One moment please, I'll connect you with our scheduling desk."
+    terminal: true
+    transfer: true
+
+bot_config:
+  target_who: "Valley Medical Center"
+  goal: "Schedule a follow-up appointment for next week for patient Jane Doe, date of birth March 5 1985"
+  impersonate: true
+  persona: "Jane Doe"
+  secrets:
+    date_of_birth: "03/05/1985"
+    patient_id: "VMC-44210"
+
+assertions:
+  - type: reached_state
+    state: hold_for_agent
+  - type: transcript_contains
+    role: assistant
+    pattern: "appointment|schedule"
+  - type: max_turns
+    value: 6

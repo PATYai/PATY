@@ -47,6 +47,13 @@ jobs:
         PYTHONPATH: .
       run: uv run pytest tests/http -v
 
+    - name: Run Simulator Tests (Transcript Level)
+      if: env.OPENAI_API_KEY != ''
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        PYTHONPATH: .
+      run: uv run pytest tests/simulator -m "not waveform" -v
+
     - name: Run Smoke Tests (Optional)
       if: env.DAILY_API_KEY != ''
       env:

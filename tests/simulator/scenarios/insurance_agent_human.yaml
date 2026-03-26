@@ -1,0 +1,31 @@
+name: "Insurance Agent - File Auto Claim"
+type: human
+initial_greeting: "Hi, this is Sarah with Acme Insurance claims. How can I help you today?"
+
+responses:
+  - when: "claim|file a|auto claim|accident|insurance claim"
+    say: "I can help you with that. Can I get your policy number please?"
+  - when: "\\d{4,}|POL-|policy number"
+    say: "Thank you, I've pulled up your account. Can you describe what happened?"
+  - when: "fender.bender|rear.ended|collision|damage to|hit.by|crashed|accident happened"
+    say: "I'm sorry to hear that. I'll get a claim started for you. Is there anything else you need?"
+  - when: "no|that's (all|it|everything)|nothing else|covers|all set|appreciate|thank|good(bye| day)|bye"
+    say: "Alright, your claim has been filed. You'll receive a confirmation email shortly. Have a good day!"
+    terminal: true
+  - default: "I'm sorry, could you say that again?"
+
+bot_config:
+  target_who: "Acme Insurance claims department"
+  goal: "File a new auto insurance claim for a fender bender that happened yesterday"
+  impersonate: true
+  persona: "John Smith"
+  secrets:
+    policy_number: "POL-98765"
+
+assertions:
+  - type: reached_terminal
+  - type: transcript_contains
+    role: assistant
+    pattern: "claim|file|accident|fender"
+  - type: max_turns
+    value: 10
