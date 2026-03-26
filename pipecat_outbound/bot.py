@@ -9,6 +9,7 @@ This bot uses Daily for transport and implements the PATY protocol
 import asyncio
 import json
 import os
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,8 @@ import yaml
 from dotenv import load_dotenv
 from loguru import logger
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from pipecat.adapters.schemas.function_schema import FunctionSchema
+from pipecat.adapters.schemas.tools_schema import ToolsSchema
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.frames.frames import (
@@ -255,6 +258,48 @@ async def run_bot(
     else:
         llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"))
 
+    # Register DTMF tool so the LLM can press digits on phone menus
+    press_digits_tool = ToolsSchema(
+        standard_tools=[
+            FunctionSchema(
+                name="press_digits",
+                description=(
+                    "Press digits on a phone keypad to navigate an automated phone menu (IVR). "
+                    "Use this when the system asks you to press a number, enter a PIN, etc."
+                ),
+                properties={
+                    "digits": {
+                        "type": "string",
+                        "description": (
+                            "The digit(s) to press. Valid characters: 0-9, *, #. "
+                            "Examples: '1' to select option 1, '4521' to enter a PIN, '#' for pound."
+                        ),
+                        "pattern": "^[0-9*#]+$",
+                    },
+                },
+                required=["digits"],
+            )
+        ]
+    )
+
+    async def _handle_press_digits(params):
+        digits = params.arguments.get("digits", "")
+        # Validate digits
+        if not re.match(r"^[0-9*#]+$", digits):
+            await params.result_callback(f"Invalid digits: {digits}")
+            return
+        logger.info(f"Sending DTMF: {digits}")
+        if hasattr(transport, "send_dtmf"):
+            await transport.send_dtmf({"tones": digits})
+        else:
+            logger.warning("Transport does not support DTMF")
+        # Log to transcript
+        if transcript_queue is not None:
+            await transcript_queue.put({"type": "dtmf", "digits": digits})
+        await params.result_callback(f"Pressed {digits}")
+
+    llm.register_function("press_digits", _handle_press_digits)
+
     # Build system prompt
     system_prompt = build_system_prompt(
         target_who=target_who,
@@ -264,9 +309,9 @@ async def run_bot(
         secrets=secrets,
     )
 
-    # Initialize LLM context with system prompt
+    # Initialize LLM context with system prompt and tools
     messages = [{"role": "system", "content": system_prompt}]
-    context = LLMContext(messages)
+    context = LLMContext(messages, tools=press_digits_tool)
     # Conservative VAD settings for PSTN — higher confidence and start_secs
     # to avoid echo triggering false interruptions.
     vad = SileroVADAnalyzer(
