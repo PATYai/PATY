@@ -1,15 +1,12 @@
-name: Pipecat Outbound Tests
+name: PATY Tests
 
 on:
   push:
     branches: [ "main" ]
-    paths:
-      - 'pipecat_outbound/**'
-      - 'tests/**'
-      - 'pyproject.toml'
   pull_request:
     branches: [ "main" ]
     paths:
+      - 'agent/**'
       - 'pipecat_outbound/**'
       - 'tests/**'
       - 'pyproject.toml'

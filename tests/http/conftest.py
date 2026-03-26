@@ -2,7 +2,7 @@
 Fixtures for HTTP integration tests against the PATY bot FastAPI service.
 
 All pipecat / opentelemetry modules are pre-mocked at sys.modules level so that
-importing pipecat_outbound.server (and transitively bot.py) doesn't require the
+importing agent.server (and transitively bot.py) doesn't require the
 real Pipecat stack to be installed.
 
 The root tests/conftest.py already patches:
@@ -74,7 +74,7 @@ for _mod in _additional_mocks:
 @pytest.fixture(autouse=True)
 def clear_sessions():
     """Ensure active_sessions is empty before and after each test."""
-    from pipecat_outbound.server import active_sessions
+    from agent.server import active_sessions
 
     active_sessions.clear()
     yield
@@ -110,7 +110,7 @@ def mock_run_bot(monkeypatch):
                 {"type": "transcript", "role": "assistant", "text": text, "turn": 0}
             )
 
-    monkeypatch.setattr("pipecat_outbound.server.run_bot", _fake_run_bot)
+    monkeypatch.setattr("agent.server.run_bot", _fake_run_bot)
 
 
 @pytest.fixture
@@ -119,8 +119,8 @@ async def client(mock_run_bot, monkeypatch):
     import httpx
     from httpx import ASGITransport
 
-    import pipecat_outbound.server as bot_server
-    from pipecat_outbound.server import app
+    import agent.server as bot_server
+    from agent.server import app
 
     monkeypatch.setattr(bot_server, "BOT_API_KEY", "")
 

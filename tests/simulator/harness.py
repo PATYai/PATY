@@ -16,9 +16,9 @@ import os
 
 from openai import AsyncOpenAI
 
-from pipecat_outbound.prompt import build_system_prompt
-from pipecat_outbound.simulator.engine import CallSimulator
-from pipecat_outbound.simulator.scenario import Scenario
+from agent.prompt import build_system_prompt
+from agent.simulator.engine import CallSimulator
+from agent.simulator.scenario import Scenario
 
 
 class TranscriptHarness:

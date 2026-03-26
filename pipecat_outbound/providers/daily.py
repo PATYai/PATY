@@ -14,7 +14,7 @@ import aiohttp
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.transports.services.daily import DailyParams, DailyTransport
 
-from ..protocol import CallRequest, CallSession, OutboundProvider
+from agent.protocol import CallRequest, CallSession, OutboundProvider
 
 
 class OutboundCallError(Exception):

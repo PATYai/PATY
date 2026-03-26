@@ -16,7 +16,7 @@ from pipecat.frames.frames import LLMMessagesAppendFrame
 from pipecat.pipeline.task import PipelineTask
 from pydantic import BaseModel, model_validator
 
-from pipecat_outbound.bot import run_bot
+from pipecat_outbound.bot import run_bot  # Voice pipeline stays in pipecat_outbound
 
 app = FastAPI(title="PATY Bot Service")
 

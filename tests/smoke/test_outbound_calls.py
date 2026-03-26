@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from pipecat_outbound.protocol import CallRequest
+from agent.protocol import CallRequest
 from pipecat_outbound.providers.daily import DailyOutboundProvider
 
 # pytestmark = pytest.mark.smoke

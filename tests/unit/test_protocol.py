@@ -1,4 +1,4 @@
-from pipecat_outbound.protocol import CallRequest, CallSession
+from agent.protocol import CallRequest, CallSession
 
 
 def test_call_request_defaults():

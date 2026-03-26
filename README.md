@@ -14,19 +14,26 @@ https://paty-stage-mcp.fly.dev/mcp
 ```
 No authentication required.
 
-This project consists of two components:
+This project consists of three components:
 
 | Component | Description |
 |-----------|-------------|
-| **`/pipecat_outbound`** | Pipecat voice bot for outbound calls via Daily |
+| **`/agent`** | Framework-agnostic intelligence: prompts, protocol, HTTP server, call simulator |
+| **`/pipecat_outbound`** | Pipecat-based voice pipeline and telephony providers |
 | **`/mcp`** | MCP server to control the voice agent |
 
-### Voice Bot (`/pipecat_outbound`)
+### Agent Intelligence (`/agent`)
 
-The voice bot (PATY) makes outbound calls and maintains a warm, polite conversation following the PATY protocol:
-- Always maintains a courteous tone
-- Starts requests with "Please"
-- Responds with "Thank you" when receiving information
+The agent layer owns PATY's personality, system prompt, call protocol, and HTTP server. It has no dependency on Pipecat, so it can be tested and reused independently.
+
+- **`prompt.py`** — System prompt construction (PATY protocol: "Please" and "Thank you")
+- **`protocol.py`** — `CallRequest`, `CallSession`, `OutboundProvider` ABC
+- **`server.py`** — FastAPI HTTP server (session management, transcripts, live instructions)
+- **`simulator/`** — IVR and human-persona call simulators for automated testing
+
+### Voice Pipeline (`/pipecat_outbound`)
+
+The voice bot makes outbound calls using Pipecat with Daily for WebRTC transport.
 
 **Stack:**
 - **Transport**: Daily WebRTC
@@ -44,6 +51,8 @@ Control the voice agent via MCP tools:
 | `end_call` | End an active call |
 | `list_rooms` | List active calls |
 | `get_call_status` | Get call status |
+| `get_transcript` | Get live call transcript |
+| `send_instruction` | Send a live instruction to the bot |
 
 ## Dev Setup
 
@@ -63,7 +72,7 @@ cp .env.example .env.local
 
 ```console
 uv sync
-uv run python -m pipecat_outbound.bot --help
+uv run uvicorn agent.server:app --host 0.0.0.0 --port 8080
 ```
 
 ## Running the MCP Server
@@ -105,12 +114,26 @@ OTEL_EXPORTER_OTLP_HEADERS=x-honeycomb-team=<your-api-key>
 ## Tests
 
 ```console
-uv run pytest tests/ -v
+uv run pytest tests/unit               # Unit tests
+uv run pytest tests/http -v            # HTTP endpoint tests
+uv run pytest tests/simulator -v       # Simulator tests (requires OPENAI_API_KEY)
+uv run pytest tests/smoke              # Smoke tests (requires DAILY_API_KEY)
 ```
+
+### Call Simulator
+
+The simulator (`agent/simulator/`) supports two modes:
+
+- **IVR**: State-machine phone menus with regex-matched transitions. Tests that PATY can navigate multi-level IVR trees to reach a live agent.
+- **Human persona**: Sequential pattern-matched conversations. Tests that PATY can handle post-IVR interactions like filing claims or booking appointments.
+
+Scenarios are defined in YAML (`tests/simulator/scenarios/`) and run at two levels:
+- **Transcript-level** (every PR): text-only loop with a real LLM, no audio services needed
+- **Waveform-level** (merge to main): full TTS→STT round-trip to catch audio fidelity issues
 
 ## Deploying to Fly.io
 
-Both components are deployed to Fly.io.
+All three components are deployed to Fly.io.
 
 ### First-time setup
 
@@ -123,7 +146,7 @@ Create the apps, set secrets from `.env.local`, and deploy:
 ### Subsequent deploys
 
 ```bash
-./scripts/deploy-fly.sh [bot|mcp|all]
+./scripts/deploy-fly.sh [bot|mcp|web|all]
 ```
 
 ### Using the Deployed MCP Server
@@ -134,6 +157,23 @@ Run the setup script to generate a project-local `.mcp.json` config:
 ```
 
 This creates a `.mcp.json` file in the project root with the `paty-control` MCP server configured. Restart your coding agent to pick up the new configuration.
+
+## Architecture
+
+### Call Flow
+
+1. **MCP Server** receives `make_call` request with phone number and goal
+2. Server creates a **Daily room** configured for dial-out
+3. Server spawns **Pipecat bot** via HTTP POST to the bot service
+4. Bot joins Daily room and initiates **PSTN dial-out**
+5. When callee answers, bot conducts conversation using LLM
+6. Call ends when callee hangs up or `end_call` is called
+
+### Voice Pipeline
+
+```
+Phone Audio → Daily Transport → AssemblyAI STT → OpenAI LLM → Cartesia TTS → Daily Transport → Phone Audio
+```
 
 ## License
 
