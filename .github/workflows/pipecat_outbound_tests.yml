@@ -60,3 +60,29 @@ jobs:
         DAILY_API_KEY: ${{ secrets.DAILY_API_KEY }}
         PYTHONPATH: .
       run: uv run pytest tests/smoke
+
+  waveform:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v1
+      with:
+        version: "latest"
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+
+    - name: Install dependencies
+      run: uv sync --all-extras
+
+    - name: Run Simulator Tests (Waveform Level)
+      if: env.OPENAI_API_KEY != ''
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        PYTHONPATH: .
+      run: uv run pytest tests/simulator -m "waveform" -v
