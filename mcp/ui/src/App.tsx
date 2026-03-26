@@ -6,7 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type TranscriptEvent =
   | { type: "transcript"; role: "user" | "assistant"; text: string }
-  | { type: "status"; event: string };
+  | { type: "status"; event: string }
+  | { type: "dtmf"; digits: string };
 
 type Phase = "connecting" | "live" | "ended" | "error";
 
@@ -194,6 +195,13 @@ export function App() {
           if (event.type === "status") return (
             <div key={i} className="flex justify-center py-1">
               <span className="text-xs text-zinc-400 italic">{statusLabel(event.event)}</span>
+            </div>
+          );
+          if (event.type === "dtmf") return (
+            <div key={i} className="flex justify-center py-1">
+              <span className="text-xs font-mono bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full">
+                Pressed {event.digits.split("").join(" ")}
+              </span>
             </div>
           );
           const isUser = event.role === "user";
