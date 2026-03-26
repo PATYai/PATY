@@ -48,7 +48,7 @@ from pipecat.turns.user_turn_strategies import (
 )
 from pipecat.utils.tracing.setup import setup_tracing
 
-from pipecat_outbound.prompt import build_system_prompt
+from agent.prompt import build_system_prompt
 
 load_dotenv("../.env.local")
 load_dotenv(".env.local")

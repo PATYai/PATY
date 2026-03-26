@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from pipecat_outbound.simulator.engine import IVRSimulator, PersonaSimulator
-from pipecat_outbound.simulator.scenario import load_scenario
+from agent.simulator.engine import IVRSimulator, PersonaSimulator
+from agent.simulator.scenario import load_scenario
 from tests.simulator.harness import TranscriptHarness, WaveformHarness
 
 SCENARIOS_DIR = Path(__file__).parent / "scenarios"

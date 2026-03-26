@@ -19,7 +19,8 @@ from pipecat.transports.network.fastapi_websocket import (
     FastAPIWebsocketTransport,
 )
 
-from ..protocol import CallRequest, CallSession, OutboundProvider
+from agent.protocol import CallRequest, CallSession, OutboundProvider
+
 from .websocket_base import WebSocketConnectionCoordinator
 
 

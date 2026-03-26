@@ -13,7 +13,8 @@ import re
 import yaml
 from pipecat.transports.base_transport import BaseTransport
 
-from .protocol import CallRequest, CallSession, OutboundProvider
+from agent.protocol import CallRequest, CallSession, OutboundProvider
+
 from .providers.daily import DailyOutboundProvider
 from .providers.websocket_base import WebSocketConnectionCoordinator
 

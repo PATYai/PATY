@@ -2,7 +2,7 @@
 
 ## Workflow
 
-- **Always lint before considering work done.** Run `uv run --directory mcp ruff check src/` for MCP changes and `uv run ruff check pipecat_outbound/` for bot changes.
+- **Always lint before considering work done.** Run `uv run --directory mcp ruff check src/` for MCP changes and `uv run ruff check agent/ pipecat_outbound/` for bot/agent changes.
 
 ## Testing the ChatGPT Mini-App (`mcp/ui`)
 
@@ -29,10 +29,11 @@ node test-local.mjs
 
 ## Overview
 
-PATY (Please And Thank You) is a voice AI project with two components:
+PATY (Please And Thank You) is a voice AI project with three components:
 
-1. **`/pipecat_outbound`** - A Pipecat-based voice bot for outbound calls via Daily
-2. **`/mcp`** - An MCP server to control the voice agent
+1. **`/agent`** - Framework-agnostic intelligence: prompts, protocol, HTTP server, call simulator
+2. **`/pipecat_outbound`** - Pipecat-based voice pipeline and telephony providers
+3. **`/mcp`** - An MCP server to control the voice agent
 
 This project uses Daily for telephony (dial-out) and Pipecat for the voice AI pipeline.
 
@@ -40,11 +41,18 @@ This project uses Daily for telephony (dial-out) and Pipecat for the voice AI pi
 
 ```
 PATY/
-├── pipecat_outbound/            # Pipecat voice bot (primary)
+├── agent/                       # Agent intelligence layer
 │   ├── __init__.py
-│   ├── bot.py                  # Main voice bot
-│   ├── caller.py               # Outbound call management
-│   ├── protocol.py             # Provider abstractions
+│   ├── prompt.py               # System prompt construction
+│   ├── protocol.py             # CallRequest, CallSession, OutboundProvider ABC
+│   ├── server.py               # FastAPI HTTP server (session mgmt, transcripts)
+│   └── simulator/              # Call simulation engines
+│       ├── engine.py           # IVRSimulator, PersonaSimulator
+│       └── scenario.py         # YAML scenario loader
+├── pipecat_outbound/            # Pipecat voice pipeline
+│   ├── __init__.py
+│   ├── bot.py                  # Voice bot (STT→LLM→TTS pipeline)
+│   ├── caller.py               # Outbound call routing
 │   ├── telephony.yaml          # Provider configuration
 │   └── providers/
 │       └── daily.py            # Daily.co provider
@@ -55,6 +63,8 @@ PATY/
 │   └── .env.example
 ├── tests/                       # Shared tests
 │   ├── unit/
+│   ├── http/
+│   ├── simulator/              # IVR/human simulation tests
 │   └── smoke/
 ├── .env.local                   # Environment variables
 ├── pyproject.toml               # Root project config

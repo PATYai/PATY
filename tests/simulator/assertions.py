@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import re
 
-from pipecat_outbound.simulator.engine import CallSimulator, IVRSimulator
-from pipecat_outbound.simulator.scenario import Scenario
+from agent.simulator.engine import CallSimulator, IVRSimulator
+from agent.simulator.scenario import Scenario
 
 
 def assert_reached_state(simulator: IVRSimulator, state: str) -> None:

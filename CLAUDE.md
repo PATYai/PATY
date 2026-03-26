@@ -11,8 +11,8 @@ Before considering any work done, run **all four** of these — both `check` and
 ```bash
 uv run --directory mcp ruff check src/
 uv run --directory mcp ruff format --check src/
-uv run ruff check pipecat_outbound/
-uv run ruff format --check pipecat_outbound/
+uv run ruff check agent/ pipecat_outbound/
+uv run ruff format --check agent/ pipecat_outbound/
 ```
 
 `ruff check` catches lint errors; `ruff format --check` catches formatting issues. They are separate and both must pass.
