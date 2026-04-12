@@ -30,6 +30,7 @@ async def _run(config_path: str) -> None:
     from paty.config.loader import load_config
     from paty.hardware.detect import detect_hardware
     from paty.hardware.profiles import resolve_profile
+    from paty.metrics.setup import setup_metrics
     from paty.pipeline.builder import build_local_transport, build_pipeline
     from paty.resolve.resolver import resolve_services
     from paty.runtime.manager import ManagedProcess, create_managed_llm
@@ -40,6 +41,9 @@ async def _run(config_path: str) -> None:
 
     # 2. Initialize tracing
     tracer = setup_tracing(raw_config.tracing)
+
+    # 3. Initialize metrics
+    metrics_handle = setup_metrics(raw_config.metrics)
 
     managed: list[ManagedProcess] = []
 
@@ -112,6 +116,7 @@ async def _run(config_path: str) -> None:
                     tts=services.tts,
                     transport=transport,
                     persona=raw_config.agent.persona,
+                    observers=[metrics_handle.observer],
                 )
 
         console.print(
