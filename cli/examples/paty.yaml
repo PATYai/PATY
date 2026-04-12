@@ -1,0 +1,16 @@
+agent:
+  name: paty
+  persona: "You are PATY, a friendly personal assistant. You're warm, helpful, and concise."
+
+pipeline:
+  stt: whisper
+  llm: ollama
+  tts: kokoro
+  vad: silero
+
+hardware:
+  profile: auto
+
+tracing:
+  enabled: true
+  console: true
