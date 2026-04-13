@@ -99,6 +99,16 @@ class TracingConfig(BaseModel):
     service_name: str = "paty"
 
 
+# --- Metrics ---
+
+
+class MetricsConfig(BaseModel):
+    enabled: bool = True
+    console_interval: int = 10  # seconds between Rich table prints (0 = disable)
+    prometheus: bool = False  # start :prometheus_port/metrics endpoint
+    prometheus_port: int = 9464
+
+
 # --- Top-level ---
 
 
@@ -108,3 +118,4 @@ class PatyConfig(BaseModel):
     hardware: HardwareConfig = HardwareConfig()
     sip: SIPConfig = SIPConfig()
     tracing: TracingConfig = TracingConfig()
+    metrics: MetricsConfig = MetricsConfig()

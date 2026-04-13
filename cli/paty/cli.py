@@ -28,8 +28,9 @@ def run(config: str):
 
 async def _run(config_path: str) -> None:
     from paty.config.loader import load_config
-    from paty.hardware.detect import detect_hardware
+    from paty.hardware.detect import detect_hardware, wire_memory
     from paty.hardware.profiles import resolve_profile
+    from paty.metrics.setup import setup_metrics
     from paty.pipeline.builder import build_local_transport, build_pipeline
     from paty.resolve.resolver import resolve_services
     from paty.runtime.manager import ManagedProcess, create_managed_llm
@@ -40,6 +41,9 @@ async def _run(config_path: str) -> None:
 
     # 2. Initialize tracing
     tracer = setup_tracing(raw_config.tracing)
+
+    # 3. Initialize metrics
+    metrics_handle = setup_metrics(raw_config.metrics)
 
     managed: list[ManagedProcess] = []
 
@@ -69,7 +73,9 @@ async def _run(config_path: str) -> None:
             # 5. Start managed LLM server
             llm_model = raw_config.pipeline.llm.model or profile.llm_model
             with tracer.start_as_current_span("paty.runtime.llm") as llm_span:
-                llm = create_managed_llm(llm_model, hardware.platform.value)
+                llm = create_managed_llm(
+                    llm_model, hardware.platform.value, profile=profile
+                )
                 console.print(f"[bold]LLM:[/] starting {llm.model_id}...")
                 port = await llm.process.start()
                 managed.append(llm.process)
@@ -103,6 +109,13 @@ async def _run(config_path: str) -> None:
                 f"[bold]TTS:[/] {type(services.tts).__name__}"
             )
 
+            # 6b. Wire in-process model memory to prevent paging
+            wired = wire_memory(hardware, wire_fraction=profile.wire_fraction)
+            if wired:
+                console.print(
+                    f"[bold]Memory:[/] wired {wired // (1024 * 1024)}MB to prevent swap"
+                )
+
             # 7. Build pipeline with local audio transport
             with tracer.start_as_current_span("paty.pipeline.build"):
                 transport = build_local_transport()
@@ -112,6 +125,7 @@ async def _run(config_path: str) -> None:
                     tts=services.tts,
                     transport=transport,
                     persona=raw_config.agent.persona,
+                    observers=[metrics_handle.observer],
                 )
 
         console.print(

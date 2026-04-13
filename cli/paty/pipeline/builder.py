@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.observers.base_observer import BaseObserver
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
@@ -41,6 +42,7 @@ def build_pipeline(
     *,
     enable_tracing: bool = True,
     enable_metrics: bool = True,
+    observers: list[BaseObserver] | None = None,
 ) -> tuple[Pipeline, PipelineTask, PipelineRunner]:
     """Build a standard voice agent pipeline.
 
@@ -76,6 +78,7 @@ def build_pipeline(
             enable_metrics=enable_metrics,
         ),
         enable_tracing=enable_tracing,
+        observers=observers or [],
     )
 
     runner = PipelineRunner()

@@ -19,15 +19,20 @@ class ResolvedServices:
 
 def resolve_stt(cfg: STTConfig, platform: Platform, profile: ResolvedProfile) -> Any:
     """Resolve STT config to a Pipecat service instance."""
+    # Use profile's STT provider/model when user hasn't overridden
+    effective_provider = cfg.provider
     if cfg.model is None:
-        cfg = cfg.model_copy(update={"model": profile.stt_model})
+        cfg = cfg.model_copy(
+            update={"model": profile.stt_model, "provider": profile.stt_provider}
+        )
+        effective_provider = profile.stt_provider
 
-    key = (cfg.provider, platform)
+    key = (effective_provider, platform)
     factory = STT_REGISTRY.get(key)
     if factory is None:
-        msg = f"No STT service registered for ({cfg.provider!r}, {platform.value!r})"
+        msg = f"No STT service registered for ({effective_provider!r}, {platform.value!r})"
         raise ValueError(msg)
-    return factory(cfg)
+    return factory(cfg, profile)
 
 
 def resolve_llm(cfg: LLMConfig, platform: Platform, profile: ResolvedProfile) -> Any:

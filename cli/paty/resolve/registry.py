@@ -10,6 +10,7 @@ from collections.abc import Callable
 from typing import Any
 
 from paty.config.schema import LLMConfig, Platform, STTConfig, TTSConfig
+from paty.hardware.profiles import ResolvedProfile
 
 # Type alias for factory functions
 Factory = Callable[..., Any]
@@ -19,18 +20,28 @@ Factory = Callable[..., Any]
 # ---------------------------------------------------------------------------
 
 STT_REGISTRY: dict[tuple[str, Platform], Factory] = {
-    ("whisper", Platform.MLX): lambda cfg: _make_whisper(cfg, device="auto"),
-    ("whisper", Platform.CUDA): lambda cfg: _make_whisper(cfg, device="cuda"),
-    ("whisper", Platform.CPU): lambda cfg: _make_whisper(cfg, device="cpu"),
+    ("mlx-audio", Platform.MLX): lambda cfg, p: _make_mlx_audio_stt(cfg),
+    ("whisper", Platform.MLX): lambda cfg, p: _make_whisper(cfg, "auto", p),
+    ("whisper", Platform.CUDA): lambda cfg, p: _make_whisper(cfg, "cuda", p),
+    ("whisper", Platform.CPU): lambda cfg, p: _make_whisper(cfg, "cpu", p),
 }
 
 
-def _make_whisper(cfg: STTConfig, device: str) -> Any:
+def _make_mlx_audio_stt(cfg: STTConfig) -> Any:
+    from paty.runtime.stt_service import MLXAudioSTTService
+
+    return MLXAudioSTTService(
+        model_repo=cfg.model or "mlx-community/whisper-small-mlx",
+    )
+
+
+def _make_whisper(cfg: STTConfig, device: str, profile: ResolvedProfile) -> Any:
     from pipecat.services.whisper.stt import WhisperSTTService
 
     return WhisperSTTService(
         settings=WhisperSTTService.Settings(model=cfg.model),
         device=device,
+        compute_type=profile.stt_compute_type,
     )
 
 

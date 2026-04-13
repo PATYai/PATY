@@ -88,3 +88,38 @@ def detect_hardware() -> HardwareInfo:
     mem = detect_memory_mb()
     gpu = _detect_gpu_name()
     return HardwareInfo(platform=plat, memory_mb=mem, gpu_name=gpu)
+
+
+def wire_memory(hw: HardwareInfo, wire_fraction: float = 0.0) -> int:
+    """Wire MLX memory to prevent paging of in-process model weights.
+
+    On macOS 15+ with Apple Silicon, this calls mx.set_wired_limit()
+    to lock model weights (Whisper STT, Kokoro TTS) into physical RAM
+    so the OS cannot page them out when the LLM subprocess spikes.
+
+    Should be called *after* in-process models are loaded so their
+    weights are already allocated.
+
+    Args:
+        hw: Detected hardware info.
+        wire_fraction: Fraction of max_recommended_working_set_size to wire.
+                       Comes from the resolved profile (0.0 = skip wiring).
+
+    Returns the wired limit in bytes (0 if not applicable).
+    """
+    if hw.platform != Platform.MLX or wire_fraction <= 0:
+        return 0
+
+    try:
+        import mlx.core as mx
+
+        info = mx.device_info()
+        max_wired = info.get("max_recommended_working_set_size", 0)
+        if max_wired == 0:
+            return 0
+
+        limit = int(max_wired * wire_fraction)
+        mx.set_wired_limit(limit)
+        return limit
+    except (ImportError, OSError):
+        return 0

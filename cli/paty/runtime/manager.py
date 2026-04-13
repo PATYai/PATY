@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 import httpx
 from opentelemetry import trace
 
+from paty.hardware.profiles import ResolvedProfile
+
 tracer = trace.get_tracer("paty")
 
 
@@ -115,11 +117,17 @@ class ManagedLLM:
 def create_managed_llm(
     model: str,
     platform: str,
+    profile: ResolvedProfile | None = None,
 ) -> ManagedLLM:
     """Create a ManagedProcess for the LLM inference server.
 
     Returns a ManagedLLM containing the process and the resolved model_id
     that the OpenAI-compatible client should use in requests.
+
+    Args:
+        model: Model key (e.g. "qwen3:4b") or HuggingFace repo path.
+        platform: Compute platform ("mlx", "cuda", "cpu").
+        profile: Resolved hardware profile with tuning settings.
     """
     # Model key (e.g. "qwen3:8b") → HuggingFace repo
     mlx_models = {
@@ -135,15 +143,27 @@ def create_managed_llm(
 
     if platform == "mlx":
         hf_repo = mlx_models.get(model, model)
+        cmd = [
+            sys.executable,
+            "-m",
+            "mlx_lm.server",
+            "--model",
+            hf_repo,
+        ]
+        if profile:
+            cmd.extend(
+                [
+                    "--prompt-cache-size",
+                    str(profile.llm_prompt_cache_size),
+                    "--max-tokens",
+                    str(profile.llm_max_tokens),
+                    "--prefill-step-size",
+                    str(profile.llm_prefill_step_size),
+                ]
+            )
         proc = ManagedProcess(
             name="llm",
-            cmd=[
-                sys.executable,
-                "-m",
-                "mlx_lm.server",
-                "--model",
-                hf_repo,
-            ],
+            cmd=cmd,
             health_path="/v1/models",
         )
         return ManagedLLM(process=proc, model_id=hf_repo)
