@@ -18,6 +18,9 @@ class TestRegistryKeys:
         for plat in (Platform.MLX, Platform.CUDA, Platform.CPU):
             assert ("whisper", plat) in STT_REGISTRY
 
+    def test_stt_mlx_audio_on_mlx(self):
+        assert ("mlx-audio", Platform.MLX) in STT_REGISTRY
+
     def test_llm_ollama_all_platforms(self):
         for plat in (Platform.MLX, Platform.CUDA, Platform.CPU):
             assert ("ollama", plat) in LLM_REGISTRY
@@ -39,7 +42,8 @@ class TestResolverFillDefaults:
         cfg = STTConfig(provider="whisper", model=None)
         profile = ResolvedProfile(
             name="test",
-            stt_model="large-v3-turbo",
+            stt_provider="mlx-audio",
+            stt_model="mlx-community/whisper-small-mlx",
             llm_model="qwen3:8b",
             tts_provider="kokoro",
             tts_voice="af_bella",
@@ -55,6 +59,7 @@ class TestResolverFillDefaults:
         cfg = STTConfig(provider="nonexistent", model="some-model")
         profile = ResolvedProfile(
             name="test",
+            stt_provider="nonexistent",
             stt_model="x",
             llm_model="x",
             tts_provider="x",
