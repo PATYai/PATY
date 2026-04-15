@@ -22,6 +22,7 @@ from paty.metrics.observer import PipelineMetricsObserver
 
 if TYPE_CHECKING:
     from paty.config.schema import MetricsConfig
+    from paty.dashboard.collectors import RollingCollector
 
 # Histogram metric names and their display labels
 _HISTOGRAM_DISPLAY = {
@@ -156,11 +157,17 @@ class MetricsHandle:
         self.in_memory_reader = in_memory_reader
 
 
-def setup_metrics(config: MetricsConfig) -> MetricsHandle:
+def setup_metrics(
+    config: MetricsConfig,
+    collector: RollingCollector | None = None,
+) -> MetricsHandle:
     """Initialize the global OTEL MeterProvider and return a MetricsHandle.
 
     The handle contains the PipelineMetricsObserver to attach to the
     Pipecat PipelineTask and an InMemoryMetricReader for programmatic access.
+
+    When *collector* is provided, raw metric values are also recorded into it
+    for percentile computation by dashboard frontends.
     """
     resource = Resource.create(
         {
@@ -206,7 +213,7 @@ def setup_metrics(config: MetricsConfig) -> MetricsHandle:
     metrics.set_meter_provider(provider)
 
     meter = metrics.get_meter("paty")
-    observer = PipelineMetricsObserver(meter=meter)
+    observer = PipelineMetricsObserver(meter=meter, collector=collector)
 
     return MetricsHandle(
         meter=meter,

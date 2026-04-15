@@ -21,9 +21,22 @@ def cli():
 
 @cli.command()
 @click.argument("config", type=click.Path(exists=True))
-def run(config: str):
+@click.option("--tui", is_flag=True, help="Run with full-screen TUI dashboard")
+def run(config: str, tui: bool):
     """Start the voice agent from a YAML config."""
-    asyncio.run(_run(config))
+    if tui:
+        try:
+            from paty.tui.app import PatyApp
+        except ImportError:
+            console.print(
+                "[red]TUI mode requires textual. "
+                "Install with: pip install paty\\[tui][/]"
+            )
+            raise SystemExit(1) from None
+        app = PatyApp(config_path=config)
+        app.run()
+    else:
+        asyncio.run(_run(config))
 
 
 async def _run(config_path: str) -> None:

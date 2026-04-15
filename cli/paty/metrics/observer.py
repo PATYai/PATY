@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from opentelemetry import metrics
 from pipecat.frames.frames import MetricsFrame
 from pipecat.metrics.metrics import (
@@ -11,6 +13,9 @@ from pipecat.metrics.metrics import (
     TTSUsageMetricsData,
 )
 from pipecat.observers.base_observer import BaseObserver, FramePushed
+
+if TYPE_CHECKING:
+    from paty.dashboard.collectors import RollingCollector
 
 _SERVICE_KEYWORDS = {
     "stt": ("stt", "whisper", "assemblyai", "deepgram"),
@@ -40,8 +45,14 @@ class PipelineMetricsObserver(BaseObserver):
         - paty_tts_characters_total (Counter)
     """
 
-    def __init__(self, meter: metrics.Meter | None = None, **kwargs):
+    def __init__(
+        self,
+        meter: metrics.Meter | None = None,
+        collector: RollingCollector | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
+        self._collector = collector
         m = meter or metrics.get_meter("paty")
 
         self._ttfb = {
@@ -93,9 +104,15 @@ class PipelineMetricsObserver(BaseObserver):
                 histogram = self._ttfb.get(category)
                 if histogram:
                     histogram.record(entry.value, attrs)
+                    if self._collector and category != "unknown":
+                        self._collector.record(
+                            f"paty_{category}_ttfb_seconds", entry.value
+                        )
 
             elif isinstance(entry, ProcessingMetricsData):
                 self._processing.record(entry.value, attrs)
+                if self._collector:
+                    self._collector.record("paty_llm_processing_seconds", entry.value)
 
             elif isinstance(entry, LLMUsageMetricsData):
                 usage = entry.value

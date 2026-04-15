@@ -1,0 +1,36 @@
+Screen {
+    background: $surface;
+    overflow: hidden;
+}
+
+#left-panel {
+    width: 38%;
+    height: 1fr;
+    overflow: hidden;
+}
+
+#right-panel {
+    width: 62%;
+    height: 1fr;
+    border-left: solid $primary-background;
+    overflow: hidden;
+}
+
+LogoWidget {
+    height: auto;
+    max-height: 6;
+}
+
+EqualizerWidget {
+    height: 1fr;
+    overflow: hidden;
+}
+
+LatencyChartWidget {
+    height: 55%;
+    overflow: hidden;
+}
+
+#logs {
+    height: 45%;
+}

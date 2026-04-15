@@ -33,6 +33,7 @@ cpu = [
     "pipecat-ai[whisper,silero]",
     "llama-cpp-python",
 ]
+tui = ["textual>=0.80"]
 otlp = ["opentelemetry-exporter-otlp>=1.20"]
 prometheus = ["opentelemetry-exporter-prometheus>=0.50b0"]
 eject = ["jinja2>=3.0"]

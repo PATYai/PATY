@@ -40,7 +40,55 @@ class MLXAudioSTTService(SegmentedSTTService):
 
         logger.info(f"Loading STT model: {model_repo}")
         self._model = load(model_repo)
+
+        # Some mlx-community whisper repos only ship weights + config,
+        # missing the HuggingFace preprocessor/tokenizer files that
+        # WhisperProcessor needs.  Fall back to loading the processor
+        # from the original openai repo which always has them.
+        if not self._has_processor():
+            self._install_processor_fallback(model_repo)
+
         logger.info("STT model loaded")
+
+    def _has_processor(self) -> bool:
+        """Check whether the loaded model has a usable HuggingFace processor."""
+        processor = getattr(self._model, "_processor", None)
+        return processor is not None
+
+    def _install_processor_fallback(self, model_repo: str) -> None:
+        """Load WhisperProcessor from the original openai repo as a fallback.
+
+        MLX-community whisper repos often only contain weights + config.
+        The processor/tokenizer can be loaded from the corresponding
+        openai/whisper-* repo instead.
+        """
+        # Map mlx-community repos to their openai source
+        processor_sources = {
+            "mlx-community/whisper-tiny-mlx": "openai/whisper-tiny",
+            "mlx-community/whisper-base-mlx": "openai/whisper-base",
+            "mlx-community/whisper-small-mlx": "openai/whisper-small",
+            "mlx-community/whisper-medium-mlx": "openai/whisper-medium",
+            "mlx-community/whisper-large-mlx": "openai/whisper-large",
+            "mlx-community/whisper-large-v2-mlx": "openai/whisper-large-v2",
+            "mlx-community/whisper-large-v3-mlx": "openai/whisper-large-v3",
+        }
+        source = processor_sources.get(model_repo)
+        if not source:
+            logger.warning(
+                f"No processor fallback for {model_repo} — transcription will fail"
+            )
+            return
+
+        try:
+            from transformers import WhisperProcessor
+
+            logger.info(
+                f"Loading WhisperProcessor from {source} (not bundled in {model_repo})"
+            )
+            self._model._processor = WhisperProcessor.from_pretrained(source)
+            logger.info("WhisperProcessor loaded successfully")
+        except Exception as exc:
+            logger.error(f"Failed to load WhisperProcessor from {source}: {exc}")
 
     def can_generate_metrics(self) -> bool:
         return True
