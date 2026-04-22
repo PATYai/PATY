@@ -33,7 +33,7 @@ PROFILES: dict[HardwareProfile, ResolvedProfile] = {
     HardwareProfile.APPLE_16GB: ResolvedProfile(
         name="apple-16gb",
         stt_provider="mlx-audio",
-        stt_model="mlx-community/whisper-small.en-asr-fp16",
+        stt_model="UsefulSensors/moonshine-base",
         llm_model="qwen3:4b",
         tts_provider="kokoro",
         tts_voice="af_bella",
@@ -47,7 +47,7 @@ PROFILES: dict[HardwareProfile, ResolvedProfile] = {
     HardwareProfile.APPLE_24GB: ResolvedProfile(
         name="apple-24gb",
         stt_provider="mlx-audio",
-        stt_model="mlx-community/whisper-large-v3-turbo-asr-fp16",
+        stt_model="UsefulSensors/moonshine-base",
         llm_model="qwen3:14b",
         tts_provider="kokoro",
         tts_voice="af_bella",

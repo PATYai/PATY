@@ -17,7 +17,7 @@ from pipecat.frames.frames import ErrorFrame, Frame, TranscriptionFrame
 from pipecat.services.stt_service import SegmentedSTTService
 from pipecat.utils.time import time_now_iso8601
 
-DEFAULT_MODEL_REPO = "mlx-community/whisper-small.en-asr-fp16"
+DEFAULT_MODEL_REPO = "UsefulSensors/moonshine-base"
 
 
 class MLXAudioSTTService(SegmentedSTTService):
@@ -39,11 +39,9 @@ class MLXAudioSTTService(SegmentedSTTService):
         *,
         compute_executor: ThreadPoolExecutor,
         model_repo: str = DEFAULT_MODEL_REPO,
-        no_speech_prob: float = 0.4,
         **kwargs,
     ):
         super().__init__(sample_rate=16000, **kwargs)
-        self._no_speech_prob = no_speech_prob
         self._executor = compute_executor
         self._model_repo = model_repo
 
