@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
@@ -12,13 +13,24 @@ from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
-    LLMUserAggregatorParams,
 )
+
+# STTMuteFilter is marked deprecated in favor of user_mute_strategies, but for
+# our config (segmented STT + local speaker/mic with acoustic coupling) filtering
+# at the STT boundary is the correct layer — it drops echoed mic audio before it
+# can be transcribed and delivered to the aggregator late. We accept and silence
+# the deprecation warning until pipecat offers an equivalent upstream filter.
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    from pipecat.processors.filters.stt_mute_filter import (
+        STTMuteConfig,
+        STTMuteFilter,
+        STTMuteStrategy,
+    )
 from pipecat.transports.local.audio import (
     LocalAudioTransport,
     LocalAudioTransportParams,
 )
-from pipecat.turns.user_mute import AlwaysUserMuteStrategy
 
 
 def build_local_transport() -> LocalAudioTransport:
@@ -47,22 +59,29 @@ def build_pipeline(
     """Build a standard voice agent pipeline.
 
     Pipeline ordering:
-        transport.input → stt → user_agg → llm → tts →
+        transport.input → stt_mute → stt → user_agg → llm → tts →
         transport.output → assistant_agg
+
+    ``stt_mute`` is an ``STTMuteFilter`` set to ``ALWAYS`` — it drops mic
+    audio and VAD frames for the full duration the bot is speaking, which
+    both suppresses acoustic feedback from the speaker → mic loop and
+    enforces deliberate turn-taking (no interruption while bot talks).
     """
     messages = [{"role": "system", "content": persona}]
     context = LLMContext(messages)
 
-    user_params = LLMUserAggregatorParams(
-        user_mute_strategies=[AlwaysUserMuteStrategy()],
-    )
-    user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
-        context, user_params=user_params
-    )
+    user_aggregator, assistant_aggregator = LLMContextAggregatorPair(context)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        stt_mute = STTMuteFilter(
+            config=STTMuteConfig(strategies={STTMuteStrategy.ALWAYS})
+        )
 
     pipeline = Pipeline(
         [
             transport.input(),
+            stt_mute,
             stt,
             user_aggregator,
             llm,

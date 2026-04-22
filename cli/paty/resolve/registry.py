@@ -1,12 +1,15 @@
 """Service registries: (provider, platform) → Pipecat service factory.
 
 Each factory receives a resolved config object (STTConfig, LLMConfig, TTSConfig)
-with model/voice already filled in (from explicit override or profile default).
+with model/voice already filled in (from explicit override or profile default),
+plus a ``compute_executor`` that may be None.  MLX factories require it;
+CUDA/CPU factories ignore it.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from paty.config.schema import LLMConfig, Platform, STTConfig, TTSConfig
@@ -20,18 +23,22 @@ Factory = Callable[..., Any]
 # ---------------------------------------------------------------------------
 
 STT_REGISTRY: dict[tuple[str, Platform], Factory] = {
-    ("mlx-audio", Platform.MLX): lambda cfg, p: _make_mlx_audio_stt(cfg),
-    ("whisper", Platform.MLX): lambda cfg, p: _make_whisper(cfg, "auto", p),
-    ("whisper", Platform.CUDA): lambda cfg, p: _make_whisper(cfg, "cuda", p),
-    ("whisper", Platform.CPU): lambda cfg, p: _make_whisper(cfg, "cpu", p),
+    ("mlx-audio", Platform.MLX): lambda cfg, p, ex: _make_mlx_audio_stt(cfg, ex),
+    ("whisper", Platform.MLX): lambda cfg, p, ex: _make_whisper(cfg, "auto", p),
+    ("whisper", Platform.CUDA): lambda cfg, p, ex: _make_whisper(cfg, "cuda", p),
+    ("whisper", Platform.CPU): lambda cfg, p, ex: _make_whisper(cfg, "cpu", p),
 }
 
 
-def _make_mlx_audio_stt(cfg: STTConfig) -> Any:
+def _make_mlx_audio_stt(cfg: STTConfig, executor: ThreadPoolExecutor | None) -> Any:
+    if executor is None:
+        msg = "mlx-audio STT requires a shared compute_executor"
+        raise ValueError(msg)
     from paty.runtime.stt_service import MLXAudioSTTService
 
     return MLXAudioSTTService(
-        model_repo=cfg.model or "mlx-community/whisper-small-mlx",
+        compute_executor=executor,
+        model_repo=cfg.model or "mlx-community/whisper-small.en-asr-fp16",
     )
 
 
@@ -71,17 +78,21 @@ def _make_openai_compat_llm(cfg: LLMConfig) -> Any:
 # ---------------------------------------------------------------------------
 
 TTS_REGISTRY: dict[tuple[str, Platform], Factory] = {
-    ("kokoro", Platform.MLX): lambda cfg: _make_mlx_audio_tts(cfg),
-    ("kokoro", Platform.CUDA): lambda cfg: _make_kokoro_http(cfg),
-    ("kokoro", Platform.CPU): lambda cfg: _make_kokoro_http(cfg),
-    ("piper", Platform.CPU): lambda cfg: _make_piper(cfg),
+    ("kokoro", Platform.MLX): lambda cfg, ex: _make_mlx_audio_tts(cfg, ex),
+    ("kokoro", Platform.CUDA): lambda cfg, ex: _make_kokoro_http(cfg),
+    ("kokoro", Platform.CPU): lambda cfg, ex: _make_kokoro_http(cfg),
+    ("piper", Platform.CPU): lambda cfg, ex: _make_piper(cfg),
 }
 
 
-def _make_mlx_audio_tts(cfg: TTSConfig) -> Any:
+def _make_mlx_audio_tts(cfg: TTSConfig, executor: ThreadPoolExecutor | None) -> Any:
+    if executor is None:
+        msg = "mlx-audio TTS requires a shared compute_executor"
+        raise ValueError(msg)
     from paty.runtime.tts_service import MLXAudioTTSService
 
     return MLXAudioTTSService(
+        compute_executor=executor,
         voice=cfg.voice or "af_bella",
     )
 

@@ -83,7 +83,16 @@ class PipelineMetricsObserver(BaseObserver):
         if not isinstance(frame, MetricsFrame):
             return
 
+        # A MetricsFrame is observed on every edge it crosses downstream — if we
+        # recorded on each observation we'd multi-count by the number of hops
+        # from the emitting processor to the pipeline tail. Record only on the
+        # first edge (where source is the processor that emitted the frame).
+        source_name = getattr(data.source, "name", None)
+
         for entry in frame.data:
+            if source_name != entry.processor:
+                continue
+
             attrs = {"processor": entry.processor}
             if entry.model:
                 attrs["model"] = entry.model
@@ -95,7 +104,11 @@ class PipelineMetricsObserver(BaseObserver):
                     histogram.record(entry.value, attrs)
 
             elif isinstance(entry, ProcessingMetricsData):
-                self._processing.record(entry.value, attrs)
+                # Only LLM processing times go into the LLM-processing histogram;
+                # every service emits ProcessingMetricsData, so without this guard
+                # the bucket conflates STT/TTS/aggregator timings with LLM work.
+                if _classify_processor(entry.processor) == "llm":
+                    self._processing.record(entry.value, attrs)
 
             elif isinstance(entry, LLMUsageMetricsData):
                 usage = entry.value

@@ -42,8 +42,8 @@ class TestResolverFillDefaults:
         cfg = STTConfig(provider="whisper", model=None)
         profile = ResolvedProfile(
             name="test",
-            stt_provider="mlx-audio",
-            stt_model="mlx-community/whisper-small-mlx",
+            stt_provider="whisper",
+            stt_model="distil-small.en",
             llm_model="qwen3:8b",
             tts_provider="kokoro",
             tts_voice="af_bella",
@@ -51,7 +51,7 @@ class TestResolverFillDefaults:
         # Factory will fail on Pipecat import if optional deps aren't installed.
         # That's fine — we just verify the registry lookup + default filling works.
         with contextlib.suppress(ImportError):
-            resolve_stt(cfg, Platform.MLX, profile)
+            resolve_stt(cfg, Platform.MLX, profile, compute_executor=None)
 
     def test_missing_registry_key_raises(self):
         from paty.resolve.resolver import resolve_stt
@@ -66,4 +66,4 @@ class TestResolverFillDefaults:
             tts_voice="x",
         )
         with pytest.raises(ValueError, match="No STT service registered"):
-            resolve_stt(cfg, Platform.MLX, profile)
+            resolve_stt(cfg, Platform.MLX, profile, compute_executor=None)

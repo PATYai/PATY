@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
 
@@ -31,6 +32,12 @@ class MLXAudioTTSService(TTSService):
 
     Models are auto-downloaded from HuggingFace on first use and cached
     in ~/.cache/huggingface/.
+
+    The caller must pass a ``compute_executor`` — a single-worker
+    ``ThreadPoolExecutor`` shared with every other MLX service in the
+    pipeline.  Both model load and inference (including the lazy Kokoro
+    pipeline / misaki / espeak-ng setup triggered on first call) run on
+    that thread.  See ``paty.runtime.gpu_executor`` for the rationale.
     """
 
     Settings = MLXAudioTTSSettings
@@ -39,6 +46,7 @@ class MLXAudioTTSService(TTSService):
     def __init__(
         self,
         *,
+        compute_executor: ThreadPoolExecutor,
         model_repo: str = DEFAULT_MODEL_REPO,
         voice: str = DEFAULT_VOICE,
         speed: float = 1.0,
@@ -65,13 +73,16 @@ class MLXAudioTTSService(TTSService):
         self._speed = speed
         self._lang_code = lang_code
         self._resampler = create_stream_resampler()
-
-        # Load model eagerly so it's ready for the first request
-        from mlx_audio.tts.utils import load_model
+        self._executor = compute_executor
 
         logger.info(f"Loading TTS model: {self._model_repo}")
-        self._model = load_model(self._model_repo)
+        self._model = self._executor.submit(self._load_model).result()
         logger.info("TTS model loaded")
+
+    def _load_model(self):
+        from mlx_audio.tts.utils import load_model
+
+        return load_model(self._model_repo)
 
     def can_generate_metrics(self) -> bool:
         return True
@@ -101,7 +112,7 @@ class MLXAudioTTSService(TTSService):
 
             loop = asyncio.get_event_loop()
             chunks = await loop.run_in_executor(
-                None, partial(self._generate_sync, text)
+                self._executor, partial(self._generate_sync, text)
             )
 
             for audio_bytes, in_sample_rate in chunks:
