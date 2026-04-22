@@ -59,6 +59,7 @@ class TestPipelineMetricsObserver:
         frame = MetricsFrame(data=[ttfb_data])
         pushed = MagicMock()
         pushed.frame = frame
+        pushed.source.name = "OpenAILLMService"
 
         await observer.on_push_frame(pushed)
 
@@ -73,6 +74,29 @@ class TestPipelineMetricsObserver:
         assert "paty_llm_ttfb_seconds" in metric_names
 
     @pytest.mark.asyncio
+    async def test_metrics_only_recorded_at_originating_edge(self):
+        """A MetricsFrame observed on a downstream edge must not be re-recorded."""
+        from pipecat.frames.frames import MetricsFrame
+        from pipecat.metrics.metrics import TTFBMetricsData
+
+        observer = PipelineMetricsObserver(meter=self._meter)
+
+        ttfb_data = TTFBMetricsData(
+            processor="OpenAILLMService", model="gpt-4", value=0.35
+        )
+        frame = MetricsFrame(data=[ttfb_data])
+        pushed = MagicMock()
+        pushed.frame = frame
+        # Downstream hop: source is the TTS processor, not the LLM that emitted it.
+        pushed.source.name = "KokoroTTSService"
+
+        await observer.on_push_frame(pushed)
+
+        data = self._reader.get_metrics_data()
+        # No resource_metrics means nothing was recorded, which is what we want.
+        assert data is None or not data.resource_metrics
+
+    @pytest.mark.asyncio
     async def test_tts_chars_recording(self):
         from pipecat.frames.frames import MetricsFrame
         from pipecat.metrics.metrics import TTSUsageMetricsData
@@ -83,6 +107,7 @@ class TestPipelineMetricsObserver:
         frame = MetricsFrame(data=[tts_data])
         pushed = MagicMock()
         pushed.frame = frame
+        pushed.source.name = "KokoroTTS"
 
         await observer.on_push_frame(pushed)
 

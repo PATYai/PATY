@@ -27,12 +27,16 @@ def run(config: str):
 
 
 async def _run(config_path: str) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
     from paty.config.loader import load_config
+    from paty.config.schema import Platform
     from paty.hardware.detect import detect_hardware, wire_memory
     from paty.hardware.profiles import resolve_profile
     from paty.metrics.setup import setup_metrics
     from paty.pipeline.builder import build_local_transport, build_pipeline
     from paty.resolve.resolver import resolve_services
+    from paty.runtime.gpu_executor import create_gpu_executor
     from paty.runtime.manager import ManagedProcess, create_managed_llm
     from paty.tracing.setup import setup_tracing
 
@@ -46,6 +50,7 @@ async def _run(config_path: str) -> None:
     metrics_handle = setup_metrics(raw_config.metrics)
 
     managed: list[ManagedProcess] = []
+    compute_executor: ThreadPoolExecutor | None = None
 
     try:
         with tracer.start_as_current_span("paty.startup") as startup_span:
@@ -96,9 +101,17 @@ async def _run(config_path: str) -> None:
             console.print(f"[bold]LLM:[/] ready on port {port}")
 
             # 6. Resolve services (STT + TTS in-process, LLM via managed server)
+            # On MLX, a shared single-worker executor serializes every Metal
+            # op across STT and TTS. Without this, two OS threads race on the
+            # command queue and Metal asserts out.
+            if hardware.platform == Platform.MLX:
+                compute_executor = create_gpu_executor()
             with tracer.start_as_current_span("paty.resolve.services") as svc_span:
                 services = resolve_services(
-                    raw_config.pipeline, hardware.platform, profile
+                    raw_config.pipeline,
+                    hardware.platform,
+                    profile,
+                    compute_executor=compute_executor,
                 )
                 svc_span.set_attribute("paty.stt_class", type(services.stt).__name__)
                 svc_span.set_attribute("paty.llm_class", type(services.llm).__name__)
@@ -140,6 +153,8 @@ async def _run(config_path: str) -> None:
         # Always clean up managed processes
         for proc in managed:
             await proc.stop()
+        if compute_executor is not None:
+            compute_executor.shutdown(wait=False)
 
 
 @cli.command()

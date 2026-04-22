@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any
 
@@ -17,7 +18,12 @@ class ResolvedServices:
     tts: Any
 
 
-def resolve_stt(cfg: STTConfig, platform: Platform, profile: ResolvedProfile) -> Any:
+def resolve_stt(
+    cfg: STTConfig,
+    platform: Platform,
+    profile: ResolvedProfile,
+    compute_executor: ThreadPoolExecutor | None,
+) -> Any:
     """Resolve STT config to a Pipecat service instance."""
     # Use profile's STT provider/model when user hasn't overridden
     effective_provider = cfg.provider
@@ -32,7 +38,7 @@ def resolve_stt(cfg: STTConfig, platform: Platform, profile: ResolvedProfile) ->
     if factory is None:
         msg = f"No STT service registered for ({effective_provider!r}, {platform.value!r})"
         raise ValueError(msg)
-    return factory(cfg, profile)
+    return factory(cfg, profile, compute_executor)
 
 
 def resolve_llm(cfg: LLMConfig, platform: Platform, profile: ResolvedProfile) -> Any:
@@ -48,7 +54,12 @@ def resolve_llm(cfg: LLMConfig, platform: Platform, profile: ResolvedProfile) ->
     return factory(cfg)
 
 
-def resolve_tts(cfg: TTSConfig, platform: Platform, profile: ResolvedProfile) -> Any:
+def resolve_tts(
+    cfg: TTSConfig,
+    platform: Platform,
+    profile: ResolvedProfile,
+    compute_executor: ThreadPoolExecutor | None,
+) -> Any:
     """Resolve TTS config to a Pipecat service instance."""
     # Use profile's TTS provider if user didn't override and profile says piper
     effective_provider = cfg.provider
@@ -63,17 +74,24 @@ def resolve_tts(cfg: TTSConfig, platform: Platform, profile: ResolvedProfile) ->
     if factory is None:
         msg = f"No TTS service registered for ({effective_provider!r}, {platform.value!r})"
         raise ValueError(msg)
-    return factory(cfg)
+    return factory(cfg, compute_executor)
 
 
 def resolve_services(
     pipeline_config: PipelineConfig,
     platform: Platform,
     profile: ResolvedProfile,
+    compute_executor: ThreadPoolExecutor | None = None,
 ) -> ResolvedServices:
-    """Resolve all pipeline services."""
+    """Resolve all pipeline services.
+
+    ``compute_executor`` is the shared single-worker thread that in-process
+    MLX services must use to serialize access to the Metal device.  It is
+    required when the platform is MLX and any selected provider is MLX-native;
+    ignored for CUDA/CPU backends.
+    """
     return ResolvedServices(
-        stt=resolve_stt(pipeline_config.stt, platform, profile),
+        stt=resolve_stt(pipeline_config.stt, platform, profile, compute_executor),
         llm=resolve_llm(pipeline_config.llm, platform, profile),
-        tts=resolve_tts(pipeline_config.tts, platform, profile),
+        tts=resolve_tts(pipeline_config.tts, platform, profile, compute_executor),
     )
