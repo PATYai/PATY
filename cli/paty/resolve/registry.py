@@ -38,7 +38,7 @@ def _make_mlx_audio_stt(cfg: STTConfig, executor: ThreadPoolExecutor | None) -> 
 
     return MLXAudioSTTService(
         compute_executor=executor,
-        model_repo=cfg.model or "mlx-community/whisper-small.en-asr-fp16",
+        model_repo=cfg.model or "UsefulSensors/moonshine-base",
     )
 
 
