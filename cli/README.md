@@ -63,10 +63,43 @@ Environment variables in `${VAR}` syntax are interpolated at load time.
 
 ```
 paty run <config.yaml>       Start the voice agent
+paty bus tail                Subscribe to a running bus and print events
 paty profiles                List hardware profiles and their model selections
 paty init                    Scaffold a starter config (coming soon)
 paty doctor                  Check dependencies (coming soon)
 paty eject <config.yaml>     Generate standalone bot.py (coming soon)
+```
+
+## Event Bus
+
+PATY can publish session events over a WebSocket so other processes (e.g. a TUI) can observe what the pipeline is doing without being coupled to it. Enable it in the config:
+
+```yaml
+bus:
+  enabled: true            # publish session events for subscribers
+  host: 127.0.0.1
+  port: 8765
+```
+
+With the bus enabled, `paty run` starts a local WebSocket server at `ws://host:port`. Subscribers receive two frame types:
+
+- **Text frames** — JSON control events with envelope `{v, seq, ts_ms, session_id, type, data}`. Types cover session lifecycle (`session.started`, `session.ended`), user turn (`user.speech_started/stopped`, `user.transcript.partial/final`), agent turn (`agent.thinking_started`, `agent.response.delta/completed`, `agent.speech_started/stopped`), derived `state.changed` (idle/listening/thinking/speaking), `metrics.tick`, and `error`/`log`.
+- **Binary frames** — a 16-byte header followed by PCM16LE audio samples. Header: `magic(1)`, `version(1)`, `stream(1: 1=mic, 2=agent)`, `reserved(1)`, `sample_rate(u16 LE)`, `channels(u16 LE)`, `seq(u32 LE)`, `ts_ms(u32 LE)` since session start.
+
+v1 is publisher-only — inbound messages from subscribers are discarded. The server fans out to any number of subscribers; control events never drop (overflow disconnects the slow subscriber), audio frames drop-oldest under backpressure.
+
+### `paty bus tail`
+
+Connects to a running bus and pretty-prints events as they arrive. Useful for verifying the bus end-to-end and as a reference implementation for TUI subscribers.
+
+```bash
+# terminal 1 — run the agent with bus.enabled: true
+uv run paty run examples/paty.yaml
+
+# terminal 2 — tail the bus
+uv run paty bus tail                           # defaults to ws://127.0.0.1:8765
+uv run paty bus tail --url ws://remote:8765    # different host/port
+uv run paty bus tail --no-audio                # hide audio frame lines
 ```
 
 ## Hardware Profiles
@@ -122,6 +155,12 @@ paty/
 │   └── resolver.py        # config + platform → Pipecat services
 ├── pipeline/
 │   └── builder.py         # services → Pipeline + PipelineTask
+├── bus/
+│   ├── events.py          # event types + envelope
+│   ├── codec.py           # binary audio frame pack/unpack
+│   ├── server.py          # WebSocketBus (fan-out, backpressure)
+│   ├── observer.py        # Pipecat frame → bus event translator
+│   └── tail.py            # `paty bus tail` client
 └── utils/
     └── env.py             # ${VAR} interpolation
 ```
