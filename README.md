@@ -11,8 +11,7 @@ PATY is entirely local. And therefore, is entirely free.
 Run it:
 
 # Themes
-[Day](docs/materials/day.png)
-[Night](docs/materials/night.png)
+![Day](docs/materials/PATYCLIDay.png)![Night](docs/materials/PATYCLINight.png)
 
 ## License
 
