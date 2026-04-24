@@ -210,6 +210,30 @@ def doctor():
     console.print("[yellow]Coming soon.[/]")
 
 
+@cli.group()
+def bus():
+    """Inspect and interact with the PATY event bus."""
+
+
+@bus.command("tail")
+@click.option(
+    "--url",
+    default="ws://127.0.0.1:8765",
+    show_default=True,
+    help="WebSocket URL of a running PATY bus.",
+)
+@click.option(
+    "--no-audio",
+    is_flag=True,
+    help="Suppress audio frame lines (control events only).",
+)
+def bus_tail(url: str, no_audio: bool):
+    """Subscribe to a running bus and print events as they arrive."""
+    from paty.bus.tail import run as run_tail
+
+    run_tail(url, show_audio=not no_audio)
+
+
 @cli.command()
 def profiles():
     """List available hardware profiles and their model selections."""
