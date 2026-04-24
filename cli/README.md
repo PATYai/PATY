@@ -2,12 +2,68 @@
 
 Declarative voice agent deployment on Pipecat. Write a YAML config, run `paty run config.yaml`, get a working voice agent. No `bot.py` to write.
 
-## Quickstart
+## Prerequisites
+
+- **Python 3.11+**
+- **[uv](https://docs.astral.sh/uv/)** — the Python package manager used to install and run PATY. Install with:
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+- **Platform-specific toolchain** for local inference:
+  - **Apple Silicon (macOS arm64):** nothing extra — the `[mlx]` extra pulls in MLX.
+  - **NVIDIA GPU (CUDA):** a working CUDA toolchain so `llama-cpp-python` can build with GPU offload. See the [llama-cpp-python CUDA build docs](https://llama-cpp-python.readthedocs.io/en/latest/#installation-with-specific-hardware-acceleration-blas-cuda-metal-etc).
+  - **CPU-only:** a C/C++ toolchain (`build-essential` on Linux, Xcode Command Line Tools on macOS) for `llama-cpp-python`.
+
+## Installation
 
 ```bash
-cd cli
-uv sync
-uv run paty run ../examples/paty.yaml
+git clone https://github.com/PATYai/PATY.git
+cd PATY/cli
+```
+
+Pick the extra that matches your hardware and sync:
+
+```bash
+# Apple Silicon (M1/M2/M3/M4)
+uv sync --extra mlx
+
+# NVIDIA GPU
+uv sync --extra cuda
+
+# CPU-only fallback
+uv sync --extra cpu
+```
+
+The extras install Pipecat plus the local inference backend (MLX or `llama-cpp-python`). Skip them only if you plan to point PATY at remote services.
+
+### External services
+
+- **LLM** — PATY spawns a managed inference server automatically (`mlx_lm.server` on Apple Silicon, `llama_cpp.server` on CUDA/CPU). No separate Ollama install is required; models are pulled from Hugging Face on first run.
+- **TTS on CUDA/CPU** — the `kokoro` provider expects an OpenAI-compatible Kokoro FastAPI server at `http://localhost:8880/v1`. The easiest way is the Docker image from [remsky/Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI). Apple Silicon runs Kokoro in-process via `mlx-audio` and needs nothing extra.
+- **Piper (CPU alternative)** — `tts: piper` downloads its voice model on first use; no server needed.
+
+## First run
+
+```bash
+uv run paty run examples/paty.yaml
+```
+
+On first launch PATY will:
+
+1. Detect your platform and memory, then pick a hardware profile.
+2. Download the LLM weights (a few GB — the first start is slow; subsequent runs hit the Hugging Face cache).
+3. Download the Whisper STT model on first use.
+4. Start the managed LLM server, warm it up, then open a local mic/speaker transport so you can talk to the agent.
+
+Press `Ctrl+C` to stop.
+
+## Development install
+
+```bash
+uv sync --extra mlx --extra dev          # or --extra cuda / --extra cpu
+uv run pytest tests/ -v                  # run tests
+uv run ruff check paty/ tests/           # lint
+uv run ruff format --check paty/ tests/  # format check
 ```
 
 ## Config
@@ -154,15 +210,6 @@ YAML config
 ```
 
 Every phase is traced via OpenTelemetry. Once the pipeline starts, Pipecat's built-in OTel tracing takes over for per-turn STT/LLM/TTS spans.
-
-## Development
-
-```bash
-uv sync --extra dev
-uv run pytest tests/ -v         # run tests
-uv run ruff check paty/ tests/  # lint
-uv run ruff format paty/ tests/ # format
-```
 
 ## Package Structure
 
