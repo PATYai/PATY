@@ -9,9 +9,13 @@ PATY is entirely local. And therefore, is entirely free.
 
 # CLI
 Run it:
+```
+ uv run paty run examples/paty.yaml
+ ```
 
 # Themes
-![Day](docs/materials/PATYCLIDay.png)![Night](docs/materials/PATYCLINight.png)
+![Night](docs/materials/PATYCLINight.png)
+![Day](docs/materials/PATYCLIDay.png)
 
 ## License
 
