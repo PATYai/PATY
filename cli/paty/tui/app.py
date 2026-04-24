@@ -5,62 +5,113 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
+import sys
+from collections.abc import Iterator
+from dataclasses import dataclass, field
 
 import websockets
-from rich.console import Console, Group
+from rich.console import Console
+from rich.layout import Layout
 from rich.live import Live
-from rich.padding import Padding
-from rich.text import Text
 
-from paty.tui.conversation import Conversation, Turn
-
-_ROLE_LABEL = {"user": "you", "agent": "paty"}
-_ROLE_STYLE = {"user": "bold cyan", "agent": "bold magenta"}
-
-
-def _render(convo: Conversation, status: str) -> Group:
-    items: list = []
-    for turn in convo.turns:
-        items.append(_render_turn(turn))
-    items.append(Text(status, style="dim"))
-    return Group(*items)
+from paty.tui.conversation import Conversation
+from paty.tui.layout import build_layout
+from paty.tui.theme import DAY, Theme, next_theme
+from paty.tui.widgets.avatar import render_avatar
+from paty.tui.widgets.equalizer import render_equalizer
+from paty.tui.widgets.transcript import render_transcript
 
 
-def _render_turn(turn: Turn) -> Padding:
-    label = Text(f"{_ROLE_LABEL[turn.role]:>5} │ ", style=_ROLE_STYLE[turn.role])
-    body = Text()
-    if turn.committed:
-        body.append(turn.committed)
-    if turn.pending:
-        if turn.committed:
-            body.append(" ")
-        body.append(turn.pending, style="dim italic")
-    if not body.plain:
-        body.append("…", style="dim")
-    return Padding(label + body, (0, 0, 0, 0))
+@dataclass
+class UIState:
+    convo: Conversation = field(default_factory=Conversation)
+    agent_state: str = "idle"
+    connection: str = ""
+    theme: Theme = DAY
+
+
+@contextlib.contextmanager
+def _raw_tty() -> Iterator[int | None]:
+    """Put stdin in cbreak so single keys arrive without waiting for Enter.
+
+    Yields the stdin fd, or None if stdin isn't a TTY (piped input) — in that
+    case key handling is silently skipped.
+    """
+    if not sys.stdin.isatty():
+        yield None
+        return
+    import termios
+    import tty
+
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        yield fd
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 
 async def _run(url: str) -> None:
     console = Console()
-    convo = Conversation()
-    status = f"connecting to {url}…"
+    state = UIState(connection=f"connecting to {url}…")
+    layout = build_layout()
 
-    with Live(_render(convo, status), console=console, refresh_per_second=15) as live:
+    def paint() -> None:
+        _paint(layout, state)
+
+    paint()
+
+    with (
+        _raw_tty() as fd,
+        Live(layout, console=console, refresh_per_second=15, screen=True) as live,
+    ):
+        if fd is not None:
+            loop = asyncio.get_running_loop()
+
+            def on_key() -> None:
+                try:
+                    data = os.read(fd, 64)
+                except OSError:
+                    return
+                dirty = False
+                for b in data:
+                    if chr(b) == "t":
+                        state.theme = next_theme(state.theme)
+                        dirty = True
+                if dirty:
+                    paint()
+                    live.refresh()
+
+            loop.add_reader(fd, on_key)
+
         try:
             async with websockets.connect(url) as ws:
-                status = f"connected · {url}"
-                live.update(_render(convo, status))
+                state.connection = f"connected · {url}"
+                paint()
                 async for msg in ws:
                     if isinstance(msg, bytes):
                         continue
-                    if _dispatch(convo, msg):
-                        live.update(_render(convo, status))
+                    if _dispatch(state, msg):
+                        paint()
         except (OSError, websockets.exceptions.WebSocketException) as e:
-            live.update(_render(convo, f"[red]disconnected: {e}[/]"))
+            state.connection = f"disconnected: {e}"
+            paint()
+            live.refresh()
             raise SystemExit(1) from e
 
 
-def _dispatch(convo: Conversation, raw: str) -> bool:
+def _paint(layout: Layout, state: UIState) -> None:
+    status = f"{state.connection} · theme:{state.theme.name} · t:toggle"
+    layout["transcript"].update(
+        render_transcript(state.convo, state.theme, status=status),
+    )
+    layout["avatar"].update(render_avatar(state.agent_state, state.theme))
+    layout["equalizer"].update(render_equalizer(state.theme))
+
+
+def _dispatch(state: UIState, raw: str) -> bool:
     try:
         event = json.loads(raw)
     except json.JSONDecodeError:
@@ -69,13 +120,15 @@ def _dispatch(convo: Conversation, raw: str) -> bool:
     data = event.get("data") or {}
     text = data.get("text", "")
     if etype == "user.transcript.partial":
-        convo.user_partial(text)
+        state.convo.user_partial(text)
     elif etype == "user.transcript.final":
-        convo.user_final(text)
+        state.convo.user_final(text)
     elif etype == "agent.response.delta":
-        convo.agent_delta(text)
+        state.convo.agent_delta(text)
     elif etype == "agent.response.completed":
-        convo.agent_final(text)
+        state.convo.agent_final(text)
+    elif etype == "state.changed":
+        state.agent_state = data.get("state", state.agent_state)
     else:
         return False
     return True

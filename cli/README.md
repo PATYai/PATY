@@ -64,6 +64,7 @@ Environment variables in `${VAR}` syntax are interpolated at load time.
 ```
 paty run <config.yaml>       Start the voice agent
 paty bus tail                Subscribe to a running bus and print events
+paty bus tui                 Live conversation view subscribed to the bus
 paty profiles                List hardware profiles and their model selections
 paty init                    Scaffold a starter config (coming soon)
 paty doctor                  Check dependencies (coming soon)
@@ -101,6 +102,32 @@ uv run paty bus tail                           # defaults to ws://127.0.0.1:8765
 uv run paty bus tail --url ws://remote:8765    # different host/port
 uv run paty bus tail --no-audio                # hide audio frame lines
 ```
+
+### `paty bus tui`
+
+Full-screen view of the same stream — transcript on the left, avatar top-right, equalizer bottom-right.
+
+```bash
+uv run paty bus tui                            # defaults to ws://127.0.0.1:8765
+uv run paty bus tui --url ws://remote:8765
+```
+
+Built on Rich's immediate-mode `Live`: hold state in memory, rebuild the renderable tree on each event, let the library diff and repaint. `Layout` carves the terminal into named regions and each widget is a pure `(state) -> Renderable` function, so swapping a stub for real content is a one-file edit.
+
+```
+paty/tui/
+├── __init__.py            — exports run
+├── app.py                 — event loop, UIState, repaint
+├── conversation.py        — Conversation/Turn
+├── layout.py              — root split tree
+└── widgets/
+    ├── __init__.py
+    ├── transcript.py      — conversation renderer
+    ├── avatar.py          — stub face keyed off agent state
+    └── equalizer.py       — stub bar chart (zero levels for now)
+```
+
+The avatar reacts to `state.changed` events out of the box (idle/listening/thinking/speaking). The equalizer is a visual stub — wiring it to real levels means subscribing to the bus's binary audio frames (`paty.bus.codec.unpack_audio_frame`) and computing per-band RMS.
 
 ## Hardware Profiles
 
@@ -161,6 +188,14 @@ paty/
 │   ├── server.py          # WebSocketBus (fan-out, backpressure)
 │   ├── observer.py        # Pipecat frame → bus event translator
 │   └── tail.py            # `paty bus tail` client
+├── tui/
+│   ├── app.py             # `paty bus tui` event loop + UIState
+│   ├── conversation.py    # Conversation/Turn state
+│   ├── layout.py          # Rich Layout split tree
+│   └── widgets/
+│       ├── transcript.py
+│       ├── avatar.py
+│       └── equalizer.py
 └── utils/
     └── env.py             # ${VAR} interpolation
 ```
