@@ -234,6 +234,20 @@ def bus_tail(url: str, no_audio: bool):
     run_tail(url, show_audio=not no_audio)
 
 
+@bus.command("tui")
+@click.option(
+    "--url",
+    default="ws://127.0.0.1:8765",
+    show_default=True,
+    help="WebSocket URL of a running PATY bus.",
+)
+def bus_tui(url: str):
+    """Live conversation view subscribed to a running bus."""
+    from paty.tui import run as run_tui
+
+    run_tui(url)
+
+
 @cli.command()
 def profiles():
     """List available hardware profiles and their model selections."""
