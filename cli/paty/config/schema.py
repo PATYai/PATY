@@ -109,6 +109,15 @@ class MetricsConfig(BaseModel):
     prometheus_port: int = 9464
 
 
+# --- Bus ---
+
+
+class BusConfig(BaseModel):
+    enabled: bool = False
+    host: str = "127.0.0.1"
+    port: int = 8765
+
+
 # --- Top-level ---
 
 
@@ -119,3 +128,4 @@ class PatyConfig(BaseModel):
     sip: SIPConfig = SIPConfig()
     tracing: TracingConfig = TracingConfig()
     metrics: MetricsConfig = MetricsConfig()
+    bus: BusConfig = BusConfig()

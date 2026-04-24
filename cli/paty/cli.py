@@ -29,6 +29,8 @@ def run(config: str):
 async def _run(config_path: str) -> None:
     from concurrent.futures import ThreadPoolExecutor
 
+    from paty.bus import BusObserver, WebSocketBus
+    from paty.bus.events import EventType, SessionEnded, SessionStarted
     from paty.config.loader import load_config
     from paty.config.schema import Platform
     from paty.hardware.detect import detect_hardware, wire_memory
@@ -51,6 +53,7 @@ async def _run(config_path: str) -> None:
 
     managed: list[ManagedProcess] = []
     compute_executor: ThreadPoolExecutor | None = None
+    bus: WebSocketBus | None = None
 
     try:
         with tracer.start_as_current_span("paty.startup") as startup_span:
@@ -129,7 +132,22 @@ async def _run(config_path: str) -> None:
                     f"[bold]Memory:[/] wired {wired // (1024 * 1024)}MB to prevent swap"
                 )
 
-            # 7. Build pipeline with local audio transport
+            # 7. Start the event bus (optional, TUI subscribes here)
+            observers = [metrics_handle.observer]
+            if raw_config.bus.enabled:
+                with tracer.start_as_current_span("paty.bus.start") as bus_span:
+                    bus = WebSocketBus(
+                        host=raw_config.bus.host, port=raw_config.bus.port
+                    )
+                    await bus.start()
+                    bus_span.set_attribute("paty.bus.host", raw_config.bus.host)
+                    bus_span.set_attribute("paty.bus.port", raw_config.bus.port)
+                observers.append(BusObserver(bus))
+                console.print(
+                    f"[bold]Bus:[/] ws://{raw_config.bus.host}:{raw_config.bus.port}"
+                )
+
+            # 8. Build pipeline with local audio transport
             with tracer.start_as_current_span("paty.pipeline.build"):
                 transport = build_local_transport()
                 _pipeline, task, runner = build_pipeline(
@@ -138,19 +156,34 @@ async def _run(config_path: str) -> None:
                     tts=services.tts,
                     transport=transport,
                     persona=raw_config.agent.persona,
-                    observers=[metrics_handle.observer],
+                    observers=observers,
                 )
+
+        if bus is not None:
+            bus.publish(
+                EventType.SESSION_STARTED,
+                SessionStarted(
+                    persona=raw_config.agent.persona,
+                    profile=profile.name,
+                    platform=hardware.platform.value,
+                    stt=type(services.stt).__name__,
+                    llm=type(services.llm).__name__,
+                    tts=type(services.tts).__name__,
+                ),
+            )
 
         console.print(
             f"\n[green]Agent '{raw_config.agent.name}' running. Speak into your mic.[/]"
         )
         console.print("[dim]Press Ctrl+C to stop.[/]\n")
 
-        # 8. Run — blocks until cancelled
+        # 9. Run — blocks until cancelled
         await runner.run(task)
 
     finally:
-        # Always clean up managed processes
+        if bus is not None:
+            bus.publish(EventType.SESSION_ENDED, SessionEnded(reason="shutdown"))
+            await bus.stop()
         for proc in managed:
             await proc.stop()
         if compute_executor is not None:
