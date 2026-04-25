@@ -78,7 +78,7 @@ def _recompute_input_state(
         return "typing"
     return None
 
-
+## This function is spaghetti and needs refactored
 async def _run(url: str) -> None:
     console = Console()
     state = UIState(connection=f"connecting to {url}…")
@@ -133,6 +133,7 @@ async def _run(url: str) -> None:
                 nonlocal last_bs_ts, bs_streak, last_type_ts
                 nonlocal clearing_revert, typing_revert
                 try:
+                    # os specific?
                     raw = os.read(fd, 1024)
                 except OSError:
                     return
@@ -216,6 +217,7 @@ async def _run(url: str) -> None:
 
 
 def _run_slash_command(text: str, state: UIState, outbox: asyncio.Queue[str]) -> None:
+    ## actions should be in a different file
     cmd = text[1:].split(maxsplit=1)[0].lower()
     if cmd == "theme":
         state.theme = next_theme(state.theme)
@@ -262,6 +264,7 @@ def _dispatch(state: UIState, raw: str) -> bool:
     etype = event.get("type")
     data = event.get("data") or {}
     text = data.get("text", "")
+    # should be generalized
     if etype == "user.transcript.partial":
         state.convo.user_partial(text)
     elif etype == "user.transcript.final":
