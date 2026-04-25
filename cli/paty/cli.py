@@ -29,14 +29,15 @@ def run(config: str):
 async def _run(config_path: str) -> None:
     from concurrent.futures import ThreadPoolExecutor
 
-    from paty.bus import BusObserver, WebSocketBus
-    from paty.bus.events import EventType, SessionEnded, SessionStarted
+    from paty.bus import BusAction, BusCommand, BusObserver, WebSocketBus
+    from paty.bus.events import EventType, InputMuted, SessionEnded, SessionStarted
     from paty.config.loader import load_config
     from paty.config.schema import Platform
     from paty.hardware.detect import detect_hardware, wire_memory
     from paty.hardware.profiles import resolve_profile
     from paty.metrics.setup import setup_metrics
     from paty.pipeline.builder import build_local_transport, build_pipeline
+    from paty.pipeline.mute import InputMuteFilter
     from paty.resolve.resolver import resolve_services
     from paty.runtime.gpu_executor import create_gpu_executor
     from paty.runtime.manager import ManagedProcess, create_managed_llm
@@ -134,6 +135,7 @@ async def _run(config_path: str) -> None:
 
             # 7. Start the event bus (optional, TUI subscribes here)
             observers = [metrics_handle.observer]
+            input_mute = InputMuteFilter()
             if raw_config.bus.enabled:
                 with tracer.start_as_current_span("paty.bus.start") as bus_span:
                     bus = WebSocketBus(
@@ -143,6 +145,19 @@ async def _run(config_path: str) -> None:
                     bus_span.set_attribute("paty.bus.host", raw_config.bus.host)
                     bus_span.set_attribute("paty.bus.port", raw_config.bus.port)
                 observers.append(BusObserver(bus))
+
+                async def _handle_command(
+                    cmd: BusCommand, _bus: WebSocketBus = bus
+                ) -> None:
+                    if cmd.action == BusAction.MUTE_TOGGLE:
+                        new = await input_mute.toggle()
+                    elif cmd.action == BusAction.MUTE_SET:
+                        new = await input_mute.set_mute(bool(cmd.muted))
+                    else:
+                        return
+                    _bus.publish(EventType.INPUT_MUTED, InputMuted(muted=new))
+
+                bus.on_command(_handle_command)
                 console.print(
                     f"[bold]Bus:[/] ws://{raw_config.bus.host}:{raw_config.bus.port}"
                 )
@@ -157,6 +172,7 @@ async def _run(config_path: str) -> None:
                     transport=transport,
                     persona=raw_config.agent.persona,
                     observers=observers,
+                    input_mute_filter=input_mute,
                 )
 
         if bus is not None:

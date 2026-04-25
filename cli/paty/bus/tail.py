@@ -34,6 +34,7 @@ _EVENT_COLOR = {
     "metrics.tick": "dim",
     "error": "bold red",
     "log": "dim",
+    "input.muted": "bold magenta",
 }
 
 
@@ -82,6 +83,9 @@ def _render_event(console: Console, raw: str) -> None:
     elif etype == "metrics.tick":
         parts = [f"{k}={v:.1f}" for k, v in data.items() if isinstance(v, int | float)]
         console.print(f"{prefix} {' '.join(parts)}")
+    elif etype == "input.muted":
+        muted = data.get("muted", False)
+        console.print(f"{prefix} mic {'muted' if muted else 'unmuted'}")
     elif data:
         console.print(f"{prefix} {data}")
     else:

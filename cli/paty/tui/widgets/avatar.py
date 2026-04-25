@@ -25,14 +25,21 @@ def _state_style(state: str, theme: Theme) -> str:
     }.get(state, theme.state_idle)
 
 
-def render_avatar(state: str, theme: Theme) -> Panel:
+def render_avatar(state: str, theme: Theme, *, muted: bool = False) -> Panel:
     face = _FACES.get(state, _FACES["idle"])
     style = _state_style(state, theme)
     body = Text()
     body.append(f"{face}\n\n", style=style)
     body.append(state, style=f"bold {style}")
+    subtitle = Text()
+    if muted:
+        subtitle.append("● mic muted", style=f"bold {theme.state_thinking}")
+    else:
+        subtitle.append("○ mic live", style=theme.state_idle)
     return Panel(
         Align.center(body, vertical="middle"),
         title="avatar",
+        subtitle=subtitle,
+        subtitle_align="right",
         border_style=theme.border,
     )
