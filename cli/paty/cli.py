@@ -38,6 +38,7 @@ async def _run(config_path: str) -> None:
     from paty.metrics.setup import setup_metrics
     from paty.pipeline.builder import build_local_transport, build_pipeline
     from paty.pipeline.mute import InputMuteFilter
+    from paty.pipeline.text_input import TextInputInjector
     from paty.resolve.resolver import resolve_services
     from paty.runtime.gpu_executor import create_gpu_executor
     from paty.runtime.manager import ManagedProcess, create_managed_llm
@@ -136,6 +137,7 @@ async def _run(config_path: str) -> None:
             # 7. Start the event bus (optional, TUI subscribes here)
             observers = [metrics_handle.observer]
             input_mute = InputMuteFilter()
+            text_injector = TextInputInjector()
             if raw_config.bus.enabled:
                 with tracer.start_as_current_span("paty.bus.start") as bus_span:
                     bus = WebSocketBus(
@@ -153,6 +155,9 @@ async def _run(config_path: str) -> None:
                         new = await input_mute.toggle()
                     elif cmd.action == BusAction.MUTE_SET:
                         new = await input_mute.set_mute(bool(cmd.muted))
+                    elif cmd.action == BusAction.CHAT_SEND:
+                        await text_injector.inject(cmd.text or "")
+                        return
                     else:
                         return
                     _bus.publish(EventType.INPUT_MUTED, InputMuted(muted=new))
@@ -173,6 +178,7 @@ async def _run(config_path: str) -> None:
                     persona=raw_config.agent.persona,
                     observers=observers,
                     input_mute_filter=input_mute,
+                    text_injector=text_injector,
                 )
 
         if bus is not None:
