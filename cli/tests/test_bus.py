@@ -9,7 +9,7 @@ import os
 import pytest
 import websockets
 
-from paty.bus import EventType, WebSocketBus
+from paty.bus import BusAction, BusCommand, EventType, WebSocketBus
 from paty.bus.codec import HEADER_SIZE, pack_audio_frame, unpack_audio_frame
 from paty.bus.events import AudioStream, SessionStarted
 
@@ -129,6 +129,40 @@ class TestWebSocketBus:
         # No start() → no subscribers, should not raise.
         b.publish(EventType.LOG, {"level": "info", "module": "x", "message": "m"})
         b.publish_audio(AudioStream.MIC, 16000, 1, b"\x00")
+
+    async def test_dispatches_inbound_command(self, bus: WebSocketBus):
+        received: list[BusCommand] = []
+        bus.on_command(received.append)
+        async with websockets.connect(f"ws://127.0.0.1:{bus.port}") as client:
+            await _wait_for_subs(bus, 1)
+            await client.send(json.dumps({"action": "mute.toggle"}))
+            await client.send(json.dumps({"action": "mute.set", "muted": True}))
+            deadline = asyncio.get_event_loop().time() + 1.0
+            while len(received) < 2:
+                if asyncio.get_event_loop().time() > deadline:
+                    raise TimeoutError(f"expected 2 cmds, got {len(received)}")
+                await asyncio.sleep(0.01)
+
+        assert received[0].action == BusAction.MUTE_TOGGLE
+        assert received[1].action == BusAction.MUTE_SET
+        assert received[1].muted is True
+
+    async def test_ignores_malformed_command(self, bus: WebSocketBus):
+        received: list[BusCommand] = []
+        bus.on_command(received.append)
+        async with websockets.connect(f"ws://127.0.0.1:{bus.port}") as client:
+            await _wait_for_subs(bus, 1)
+            await client.send("not json")
+            await client.send(json.dumps({"action": "bogus"}))
+            await client.send(json.dumps({"action": "mute.toggle"}))
+            deadline = asyncio.get_event_loop().time() + 1.0
+            while not received:
+                if asyncio.get_event_loop().time() > deadline:
+                    raise TimeoutError("expected the valid command to land")
+                await asyncio.sleep(0.01)
+
+        assert len(received) == 1
+        assert received[0].action == BusAction.MUTE_TOGGLE
 
 
 async def _wait_for_subs(bus: WebSocketBus, n: int, timeout: float = 1.0) -> None:

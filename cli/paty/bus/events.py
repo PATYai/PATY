@@ -34,6 +34,23 @@ class EventType(StrEnum):
     ERROR = "error"
     LOG = "log"
 
+    # Input control
+    INPUT_MUTED = "input.muted"
+
+
+class BusAction(StrEnum):
+    """Inbound action a subscriber can send to the bus."""
+
+    MUTE_TOGGLE = "mute.toggle"
+    MUTE_SET = "mute.set"
+
+
+class BusCommand(BaseModel):
+    """Wire envelope for a control action sent by a subscriber."""
+
+    action: BusAction
+    muted: bool | None = None
+
 
 class AgentState(StrEnum):
     IDLE = "idle"
@@ -111,3 +128,7 @@ class LogData(BaseModel):
     level: str
     module: str
     message: str
+
+
+class InputMuted(BaseModel):
+    muted: bool

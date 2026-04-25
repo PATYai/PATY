@@ -55,17 +55,21 @@ def build_pipeline(
     enable_tracing: bool = True,
     enable_metrics: bool = True,
     observers: list[BaseObserver] | None = None,
+    input_mute_filter: Any = None,
 ) -> tuple[Pipeline, PipelineTask, PipelineRunner]:
     """Build a standard voice agent pipeline.
 
     Pipeline ordering:
-        transport.input → stt_mute → stt → user_agg → llm → tts →
-        transport.output → assistant_agg
+        transport.input → [input_mute] → stt_mute → stt → user_agg → llm →
+        tts → transport.output → assistant_agg
 
     ``stt_mute`` is an ``STTMuteFilter`` set to ``ALWAYS`` — it drops mic
     audio and VAD frames for the full duration the bot is speaking, which
     both suppresses acoustic feedback from the speaker → mic loop and
     enforces deliberate turn-taking (no interruption while bot talks).
+
+    ``input_mute_filter`` (optional) drops mic frames whenever the user has
+    asked PATY to stop listening — driven from the bus.
     """
     messages = [{"role": "system", "content": persona}]
     context = LLMContext(messages)
@@ -78,9 +82,11 @@ def build_pipeline(
             config=STTMuteConfig(strategies={STTMuteStrategy.ALWAYS})
         )
 
-    pipeline = Pipeline(
+    processors: list[Any] = [transport.input()]
+    if input_mute_filter is not None:
+        processors.append(input_mute_filter)
+    processors.extend(
         [
-            transport.input(),
             stt_mute,
             stt,
             user_aggregator,
@@ -90,6 +96,7 @@ def build_pipeline(
             assistant_aggregator,
         ]
     )
+    pipeline = Pipeline(processors)
 
     task = PipelineTask(
         pipeline,

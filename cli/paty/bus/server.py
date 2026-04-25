@@ -7,22 +7,27 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 import websockets
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from websockets.asyncio.server import ServerConnection
 
 from paty.bus.codec import pack_audio_frame
 from paty.bus.events import (
     AudioStream,
+    BusCommand,
     Event,
     EventType,
 )
+
+CommandHandler = Callable[[BusCommand], Awaitable[None] | None]
 
 CONTROL_QUEUE_MAX = 256
 AUDIO_QUEUE_MAX = 512
@@ -60,6 +65,11 @@ class WebSocketBus:
         self._audio_seq: dict[AudioStream, int] = {}
         self._lock = asyncio.Lock()
         self._background: set[asyncio.Task] = set()
+        self._on_command: CommandHandler | None = None
+
+    def on_command(self, handler: CommandHandler | None) -> None:
+        """Register a callback fired for every valid inbound BusCommand."""
+        self._on_command = handler
 
     @property
     def session_id(self) -> str:
@@ -122,11 +132,24 @@ class WebSocketBus:
             logger.debug("bus: subscriber disconnected")
 
     async def _reader(self, sub: _Subscriber) -> None:
-        # Publisher-only: drain and drop any inbound frames so the socket
-        # doesn't fill kernel buffers.
+        # Inbound text frames are parsed as BusCommands and dispatched to the
+        # registered handler. Binary frames + malformed JSON are dropped so
+        # the socket doesn't fill kernel buffers.
         try:
-            async for _ in sub.ws:
-                pass
+            async for msg in sub.ws:
+                if isinstance(msg, bytes) or self._on_command is None:
+                    continue
+                try:
+                    cmd = BusCommand.model_validate_json(msg)
+                except ValidationError:
+                    logger.debug("bus: ignoring malformed command")
+                    continue
+                try:
+                    result = self._on_command(cmd)
+                    if inspect.isawaitable(result):
+                        await result
+                except Exception:
+                    logger.exception("bus: command handler raised")
         except websockets.exceptions.ConnectionClosed:
             pass
 

@@ -140,10 +140,26 @@ bus:
 
 With the bus enabled, `paty run` starts a local WebSocket server at `ws://host:port`. Subscribers receive two frame types:
 
-- **Text frames** — JSON control events with envelope `{v, seq, ts_ms, session_id, type, data}`. Types cover session lifecycle (`session.started`, `session.ended`), user turn (`user.speech_started/stopped`, `user.transcript.partial/final`), agent turn (`agent.thinking_started`, `agent.response.delta/completed`, `agent.speech_started/stopped`), derived `state.changed` (idle/listening/thinking/speaking), `metrics.tick`, and `error`/`log`.
+- **Text frames** — JSON control events with envelope `{v, seq, ts_ms, session_id, type, data}`. Types cover session lifecycle (`session.started`, `session.ended`), user turn (`user.speech_started/stopped`, `user.transcript.partial/final`), agent turn (`agent.thinking_started`, `agent.response.delta/completed`, `agent.speech_started/stopped`), derived `state.changed` (idle/listening/thinking/speaking), `metrics.tick`, `input.muted`, and `error`/`log`.
 - **Binary frames** — a 16-byte header followed by PCM16LE audio samples. Header: `magic(1)`, `version(1)`, `stream(1: 1=mic, 2=agent)`, `reserved(1)`, `sample_rate(u16 LE)`, `channels(u16 LE)`, `seq(u32 LE)`, `ts_ms(u32 LE)` since session start.
 
-v1 is publisher-only — inbound messages from subscribers are discarded. The server fans out to any number of subscribers; control events never drop (overflow disconnects the slow subscriber), audio frames drop-oldest under backpressure.
+The server fans out to any number of subscribers; control events never drop (overflow disconnects the slow subscriber), audio frames drop-oldest under backpressure.
+
+### Bus actions
+
+Subscribers can also send JSON commands to the bus to control the agent. Each command is a single JSON object:
+
+```json
+{"action": "mute.toggle"}
+{"action": "mute.set", "muted": true}
+```
+
+| Action | Payload | Effect |
+|--------|---------|--------|
+| `mute.toggle` | — | Flip the mic mute. While muted, mic audio is dropped before reaching STT, so PATY can't hear you. |
+| `mute.set` | `muted: bool` | Set the mute to an explicit state. |
+
+Every state change is broadcast back as an `input.muted` event with `{muted: bool}` so all subscribers stay in sync.
 
 ### `paty bus tail`
 

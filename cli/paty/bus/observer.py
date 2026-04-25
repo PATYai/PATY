@@ -16,6 +16,8 @@ from pipecat.frames.frames import (
     MetricsFrame,
     OutputAudioRawFrame,
     TranscriptionFrame,
+    UserMuteStartedFrame,
+    UserMuteStoppedFrame,
     UserStartedSpeakingFrame,
     UserStoppedSpeakingFrame,
 )
@@ -75,6 +77,7 @@ class BusObserver(BaseObserver):
         self._user_speaking = False
         self._bot_speaking = False
         self._llm_active = False
+        self._user_muted = False
         self._state: AgentState = AgentState.IDLE
 
         self._user_speech_start_ms: int | None = None
@@ -108,6 +111,8 @@ class BusObserver(BaseObserver):
 
         # Audio frames dedupe per-edge too — emit once from the first push.
         if isinstance(frame, InputAudioRawFrame):
+            if self._user_muted:
+                return
             if self._first_time_seeing(frame.id):
                 self._bus.publish_audio(
                     AudioStream.MIC,
@@ -130,13 +135,29 @@ class BusObserver(BaseObserver):
         if not self._first_time_seeing(frame.id):
             return
 
+        if isinstance(frame, UserMuteStartedFrame):
+            self._user_muted = True
+            if self._user_speaking:
+                self._user_speaking = False
+                self._user_speech_start_ms = None
+                self._recompute_state()
+            return
+
+        if isinstance(frame, UserMuteStoppedFrame):
+            self._user_muted = False
+            return
+
         if isinstance(frame, UserStartedSpeakingFrame):
+            if self._user_muted:
+                return
             self._user_speaking = True
             self._user_speech_start_ms = self._bus.ts_ms()
             self._bus.publish(EventType.USER_SPEECH_STARTED)
             self._recompute_state()
 
         elif isinstance(frame, UserStoppedSpeakingFrame):
+            if self._user_muted:
+                return
             self._user_speaking = False
             duration_ms = None
             if self._user_speech_start_ms is not None:
