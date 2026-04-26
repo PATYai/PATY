@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from pydantic import ValidationError
 from ruamel.yaml import YAML, YAMLError
 
 from paty.pak.schema import PakManifest
+
+# Filenames discovered automatically inside ``<pak>/avatar/``.  Each maps
+# to an ``AgentState`` value (see paty.bus.events.AgentState).  Missing or
+# empty files are silently skipped — PAK authors only ship the states
+# they want to override.
+AVATAR_STATES = ("idle", "listening", "thinking", "speaking")
 
 
 class PakLoadError(Exception):
@@ -17,15 +23,38 @@ class PakLoadError(Exception):
 
 @dataclass(frozen=True)
 class Pak:
-    """A loaded, validated PAK: manifest + persona text + source directory."""
+    """A loaded, validated PAK: manifest + persona text + avatar + source dir.
+
+    ``avatar`` maps agent-state names (``idle``, ``listening``, ``thinking``,
+    ``speaking``) to the text content of ``avatar/<state>.txt``.  States
+    without a file are simply absent from the dict; the renderer falls
+    back to its built-in defaults for those.
+    """
 
     manifest: PakManifest
     soul: str
     path: Path
+    avatar: dict[str, str] = field(default_factory=dict)
 
     @property
     def name(self) -> str:
         return self.manifest.pak.name
+
+
+def _load_avatar(pak_dir: Path) -> dict[str, str]:
+    """Pick up ``avatar/<state>.txt`` files; return a state→content dict."""
+    avatar_dir = pak_dir / "avatar"
+    if not avatar_dir.is_dir():
+        return {}
+    found: dict[str, str] = {}
+    for state in AVATAR_STATES:
+        f = avatar_dir / f"{state}.txt"
+        if not f.is_file():
+            continue
+        text = f.read_text().rstrip("\n")
+        if text.strip():
+            found[state] = text
+    return found
 
 
 def load_pak(path: str | Path) -> Pak:
@@ -72,4 +101,6 @@ def load_pak(path: str | Path) -> Pak:
         msg = f"Soul file is empty: {soul_path}"
         raise PakLoadError(msg)
 
-    return Pak(manifest=manifest, soul=soul_text, path=path)
+    avatar = _load_avatar(path)
+
+    return Pak(manifest=manifest, soul=soul_text, path=path, avatar=avatar)

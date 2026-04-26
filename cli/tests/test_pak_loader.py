@@ -70,6 +70,49 @@ class TestLoadPakHappy:
             loaded.soul = "tampered"  # type: ignore[misc]
 
 
+class TestLoadAvatar:
+    def test_no_avatar_dir_yields_empty_dict(self, tmp_path: Path):
+        pak_path = _write_pak(tmp_path)
+        loaded = load_pak(pak_path)
+        assert loaded.avatar == {}
+
+    def test_picks_up_state_files(self, tmp_path: Path):
+        pak_path = _write_pak(tmp_path)
+        avatar = pak_path / "avatar"
+        avatar.mkdir()
+        (avatar / "idle.txt").write_text("(•◡•)\n")
+        (avatar / "speaking.txt").write_text("(•o•)\n")
+        loaded = load_pak(pak_path)
+        assert loaded.avatar == {"idle": "(•◡•)", "speaking": "(•o•)"}
+
+    def test_supports_multiline_art(self, tmp_path: Path):
+        pak_path = _write_pak(tmp_path)
+        avatar = pak_path / "avatar"
+        avatar.mkdir()
+        (avatar / "idle.txt").write_text(" .---.\n( o o )\n '---'\n")
+        loaded = load_pak(pak_path)
+        assert loaded.avatar["idle"] == " .---.\n( o o )\n '---'"
+
+    def test_skips_empty_files(self, tmp_path: Path):
+        pak_path = _write_pak(tmp_path)
+        avatar = pak_path / "avatar"
+        avatar.mkdir()
+        (avatar / "idle.txt").write_text("(•◡•)\n")
+        (avatar / "thinking.txt").write_text("\n  \n")
+        loaded = load_pak(pak_path)
+        assert "idle" in loaded.avatar
+        assert "thinking" not in loaded.avatar
+
+    def test_unknown_state_files_ignored(self, tmp_path: Path):
+        pak_path = _write_pak(tmp_path)
+        avatar = pak_path / "avatar"
+        avatar.mkdir()
+        (avatar / "idle.txt").write_text("(•◡•)")
+        (avatar / "dancing.txt").write_text("(•_•)")  # not a known state
+        loaded = load_pak(pak_path)
+        assert set(loaded.avatar.keys()) == {"idle"}
+
+
 class TestLoadPakErrors:
     def test_missing_directory(self, tmp_path: Path):
         with pytest.raises(PakLoadError, match="not a directory"):

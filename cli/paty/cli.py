@@ -198,6 +198,11 @@ async def _run(config_path: str) -> None:
                 )
 
         if bus is not None:
+            avatar = (
+                resolved_persona.pak.avatar
+                if resolved_persona.pak and resolved_persona.pak.avatar
+                else None
+            )
             bus.publish(
                 EventType.SESSION_STARTED,
                 SessionStarted(
@@ -207,6 +212,7 @@ async def _run(config_path: str) -> None:
                     stt=type(services.stt).__name__,
                     llm=type(services.llm).__name__,
                     tts=type(services.tts).__name__,
+                    avatar=avatar,
                 ),
             )
 
