@@ -14,15 +14,22 @@ package, not in-tree modules. Excluded from default pytest runs via
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from paty import __version__
 
+# Resolve `paty` next to the running Python so the tests work whether or not
+# the venv's bin/ is on PATH (CI runners typically don't activate the venv).
+PATY_BIN = str(Path(sys.executable).parent / "paty")
+
 
 def _paty(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["paty", *args], capture_output=True, text=True, check=False)
+    return subprocess.run(
+        [PATY_BIN, *args], capture_output=True, text=True, check=False
+    )
 
 
 @pytest.mark.userland
