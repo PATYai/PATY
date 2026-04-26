@@ -34,7 +34,7 @@ jobs:
       - name: Install bare wheel + pytest into clean venv
         run: |
           uv venv /tmp/userland
-          uv pip install --python /tmp/userland/bin/python cli/dist/*.whl pytest
+          uv pip install --python /tmp/userland/bin/python cli/dist/*.whl pytest pytest-asyncio
 
       - name: Run pre-merge userland subset against installed paty
         working-directory: cli
