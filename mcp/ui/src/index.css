@@ -1,7 +1,0 @@
-@import "tailwindcss";
-@import "@openai/apps-sdk-ui/css";
-
-body {
-  margin: 0;
-  background: transparent;
-}
