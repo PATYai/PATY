@@ -13,6 +13,16 @@ from paty import __version__
 console = Console()
 
 
+def detect_installed_backend() -> str | None:
+    for name, module in [("mlx", "mlx_lm"), ("llama", "llama_cpp")]:
+        try:
+            __import__(module)
+            return name
+        except ImportError:
+            continue
+    return None
+
+
 @click.group()
 @click.version_option(version=__version__)
 def cli():
@@ -23,6 +33,12 @@ def cli():
 @click.argument("config", type=click.Path(exists=True))
 def run(config: str):
     """Start the voice agent from a YAML config."""
+    if detect_installed_backend() is None:
+        click.echo("No backend installed.\n")
+        click.echo("  uv tool install 'paty[mlx]'   # Apple Silicon")
+        click.echo("  uv tool install 'paty[cuda]'  # NVIDIA GPU")
+        click.echo("  uv tool install 'paty[cpu]'   # Fallback")
+        raise SystemExit(1)
     asyncio.run(_run(config))
 
 

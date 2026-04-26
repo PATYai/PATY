@@ -1,0 +1,59 @@
+name: Userland (post-publish)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "paty version to test (e.g. 0.0.1)"
+        required: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install system deps (portaudio for pyaudio)
+        run: sudo apt-get update && sudo apt-get install -y portaudio19-dev
+
+      - name: Resolve target version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ github.event.inputs.version }}"
+          else
+            tag="${{ github.event.release.tag_name }}"
+            version="${tag#v}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Testing paty==$version"
+
+      - name: Install paty==${{ steps.ver.outputs.version }} from PyPI (with retry)
+        run: |
+          uv venv /tmp/userland
+          for attempt in 1 2 3 4 5 6; do
+            if uv pip install --python /tmp/userland/bin/python --refresh \
+                 "paty==${{ steps.ver.outputs.version }}" pytest; then
+              exit 0
+            fi
+            echo "PyPI not yet serving paty==${{ steps.ver.outputs.version }} (attempt $attempt), retrying in 30s..."
+            sleep 30
+          done
+          echo "Gave up waiting for PyPI to serve the new version."
+          exit 1
+
+      - name: Run full userland suite against PyPI install
+        working-directory: cli
+        run: /tmp/userland/bin/pytest tests/userland -m userland -v

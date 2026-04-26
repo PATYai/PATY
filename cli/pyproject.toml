@@ -1,9 +1,25 @@
 [project]
 name = "paty"
-version = "0.1.0"
+version = "0.0.1"
 description = "PATY — Declarative voice agent deployment on Pipecat"
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
+authors = [{ name = "Shea Hawkins", email = "shea@paty.ai" }]
+keywords = ["voice", "assistant", "pipecat", "llm", "stt", "tts", "voice-ai"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "ruamel.yaml>=0.18",
     "pydantic>=2.0",
@@ -42,6 +58,11 @@ dev = [
     "ruff>=0.1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/PATYai/PATY"
+Repository = "https://github.com/PATYai/PATY"
+Issues = "https://github.com/PATYai/PATY/issues"
+
 [project.scripts]
 paty = "paty.cli:cli"
 
@@ -52,12 +73,14 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["paty"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"paty/paks" = "paty/paks"
-
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "--ignore=tests/userland"
+markers = [
+    "userland: end-to-end tests against the installed `paty` binary",
+    "merge: subset of userland tests run on every merge to main",
+]
 
 [tool.ruff]
 line-length = 88
