@@ -27,7 +27,7 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y portaudio19-dev
 
     - name: Install dependencies
-      run: uv sync --dev --directory cli
+      run: uv sync --extra dev --directory cli
 
     - name: Run ruff linter
       run: uv run --directory cli ruff check --output-format=github .
