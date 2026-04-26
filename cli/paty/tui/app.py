@@ -78,6 +78,7 @@ def _recompute_input_state(
         return "typing"
     return None
 
+
 ## This function is spaghetti and needs refactored
 async def _run(url: str) -> None:
     console = Console()
