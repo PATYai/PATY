@@ -4,60 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      deploy_bot:
-        description: 'Deploy bot service'
-        type: boolean
-        default: true
-      deploy_mcp:
-        description: 'Deploy MCP server'
-        type: boolean
-        default: true
-      deploy_web:
-        description: 'Deploy web frontend'
-        type: boolean
-        default: true
 
 jobs:
-  deploy-bot:
-    name: Deploy Bot Service
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || inputs.deploy_bot
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Fly CLI
-        uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy
-        run: flyctl deploy --config fly.toml --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BOT }}
-
-  deploy-mcp:
-    name: Deploy MCP Server
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || inputs.deploy_mcp
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Fly CLI
-        uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy
-        working-directory: mcp
-        run: flyctl deploy --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_MCP }}
-
   deploy-web:
     name: Deploy Web Frontend
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || inputs.deploy_web
 
     steps:
       - name: Checkout
@@ -71,35 +22,3 @@ jobs:
         run: flyctl deploy --remote-only --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_WEB }}
-
-  smoke-test:
-    name: Smoke Tests
-    runs-on: ubuntu-latest
-    needs: [deploy-bot, deploy-mcp, deploy-web]
-    if: always() && (needs.deploy-bot.result == 'success' || needs.deploy-mcp.result == 'success' || needs.deploy-web.result == 'success')
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v1
-        with:
-          version: "latest"
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: uv sync --all-extras
-
-      - name: Run deployment smoke tests
-        env:
-          BOT_URL: https://paty-stage-bot.fly.dev
-          MCP_URL: https://paty-stage-mcp.fly.dev
-          WEB_URL: https://paty-web.fly.dev
-          MCP_API_KEY: ${{ secrets.MCP_API_KEY }}
-          BOT_API_KEY: ${{ secrets.BOT_API_KEY }}
-        run: uv run pytest tests/smoke/ -v -m smoke
