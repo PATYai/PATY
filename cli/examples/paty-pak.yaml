@@ -1,30 +1,11 @@
-# Example: PAK-style config (recommended).
-# The active PAK provides the persona (soul.md) and TTS voice; the legacy
-# `agent.persona` block is no longer required and is mutually exclusive
-# with `pak.active`.
+# Minimal PAK-style config.
+#
+# The active PAK supplies the persona (soul.md), TTS voice, and any LLM pin.
+# Everything else (STT, VAD, bus, tracing, metrics) is hardware/transport
+# concern and stays at its default — see examples/paty.yaml for those knobs.
 
 pak:
-  active: paty            # name of an installed PAK; the bundled default is "paty"
-
-pipeline:
-  stt: whisper
-  llm: ollama
-  vad: silero
-  # tts/llm here would override what the PAK declares — leave unset to use the PAK's voice.
+  active: paty            # bundled default; install more under ~/.paty/paks/
 
 hardware:
   profile: auto
-
-tracing:
-  enabled: true
-  console: true
-
-metrics:
-  enabled: true
-  console_interval: 10
-  prometheus: false
-
-bus:
-  enabled: true
-  host: 127.0.0.1
-  port: 8765
