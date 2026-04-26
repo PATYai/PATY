@@ -1,11 +1,11 @@
-name: Userland (on-merge)
+name: Userland (pre-merge)
 
 on:
-  push:
+  pull_request:
     branches: [main]
     paths:
       - 'cli/**'
-      - '.github/workflows/userland-on-merge.yml'
+      - '.github/workflows/userland-pre-merge.yml'
   workflow_dispatch:
 
 jobs:
@@ -36,8 +36,6 @@ jobs:
           uv venv /tmp/userland
           uv pip install --python /tmp/userland/bin/python cli/dist/*.whl pytest
 
-      - name: Run on-merge userland subset against installed paty
-        env:
-          PATH: /tmp/userland/bin:${{ env.PATH }}
+      - name: Run pre-merge userland subset against installed paty
         working-directory: cli
         run: /tmp/userland/bin/pytest tests/userland -m "userland and merge" -v
