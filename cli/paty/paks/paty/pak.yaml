@@ -1,0 +1,16 @@
+pak:
+  name: paty
+  version: 0.1.0
+  description: "The default PATY — friendly, helpful, concise."
+  soul: soul.md
+
+voice:
+  tts:
+    provider: kokoro
+    voice: af_bella
+  llm:
+    model: null
+
+conversation:
+  retention_days: 30
+  max_turns_loaded: 50

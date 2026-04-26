@@ -44,6 +44,10 @@ class UIState:
     muted: bool = False
     input_buffer: str = ""
     input_state: str | None = None  # None | "typing" | "clearing"
+    # State→text-art mapping shipped inline by the server's session.started
+    # event.  None until the first session.started arrives, or when the
+    # active PAK ships no avatar (legacy agent.persona path).
+    session_avatar: dict[str, str] | None = None
 
 
 @contextlib.contextmanager
@@ -250,6 +254,7 @@ def _paint(layout: Layout, state: UIState, console_width: int) -> None:
             state.theme,
             muted=state.muted,
             input_state=state.input_state,
+            state_faces=state.session_avatar,
         )
     )
     layout["equalizer"].update(render_equalizer(state.theme))
@@ -266,7 +271,10 @@ def _dispatch(state: UIState, raw: str) -> bool:
     data = event.get("data") or {}
     text = data.get("text", "")
     # should be generalized
-    if etype == "user.transcript.partial":
+    if etype == "session.started":
+        avatar = data.get("avatar")
+        state.session_avatar = avatar if isinstance(avatar, dict) else None
+    elif etype == "user.transcript.partial":
         state.convo.user_partial(text)
     elif etype == "user.transcript.final":
         state.convo.user_final(text)

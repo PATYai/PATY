@@ -1,0 +1,11 @@
+# Minimal PAK-style config.
+#
+# The active PAK supplies the persona (soul.md), TTS voice, and any LLM pin.
+# Everything else (STT, VAD, bus, tracing, metrics) is hardware/transport
+# concern and stays at its default — see examples/paty.yaml for those knobs.
+
+pak:
+  active: paty            # bundled default; install more under ~/.paty/paks/
+
+hardware:
+  profile: auto

@@ -118,14 +118,41 @@ class BusConfig(BaseModel):
     port: int = 8765
 
 
+# --- PAK ---
+
+
+class PakConfig(BaseModel):
+    """Selects which PAK provides the persona and voice for this run.
+
+    ``active=None`` means *fall back to the bundled default PAK* — set
+    explicitly to load one named PAK from the registry.
+    """
+
+    active: str | None = None
+    paks_dir: str | None = None
+
+
 # --- Top-level ---
 
 
 class PatyConfig(BaseModel):
-    agent: AgentConfig
+    """Either ``agent`` (legacy inline persona) or ``pak`` may drive the
+    persona — never both.  Specifying neither falls back to the bundled
+    ``paty`` PAK at runtime.
+    """
+
+    agent: AgentConfig | None = None
+    pak: PakConfig = PakConfig()
     pipeline: PipelineConfig = PipelineConfig()
     hardware: HardwareConfig = HardwareConfig()
     sip: SIPConfig = SIPConfig()
     tracing: TracingConfig = TracingConfig()
     metrics: MetricsConfig = MetricsConfig()
     bus: BusConfig = BusConfig()
+
+    @model_validator(mode="after")
+    def _legacy_and_pak_are_mutually_exclusive(self) -> PatyConfig:
+        if self.agent is not None and self.pak.active is not None:
+            msg = "Specify either `agent.persona` (legacy) or `pak.active`, not both."
+            raise ValueError(msg)
+        return self
