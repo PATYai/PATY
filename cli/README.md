@@ -122,10 +122,40 @@ paty run <config.yaml>       Start the voice agent
 paty bus tail                Subscribe to a running bus and print events
 paty bus tui                 Live conversation view subscribed to the bus
 paty profiles                List hardware profiles and their model selections
+paty pak list                List installed PAKs
+paty pak active              Print the currently active PAK
+paty pak validate <path>     Validate a PAK directory
+paty pak switch <name>       Set the active PAK (applies on next `paty run`)
 paty init                    Scaffold a starter config (coming soon)
 paty doctor                  Check dependencies (coming soon)
 paty eject <config.yaml>     Generate standalone bot.py (coming soon)
 ```
+
+## PAKs (Personality Augmentation Kits)
+
+A PAK bundles a persona (system prompt) and voice settings (TTS provider/voice, optional LLM pin) into a self-contained directory. PATY ships a default `paty` PAK; additional PAKs can be installed under `~/.paty/paks/<name>/`. Each PAK directory contains:
+
+```
+pak.yaml      # manifest: name, version, voice config
+soul.md       # the system prompt / persona document
+```
+
+A PAK-style `paty.yaml`:
+
+```yaml
+pak:
+  active: paty           # name of an installed PAK; bundled default is "paty"
+hardware:
+  profile: auto
+```
+
+The legacy `agent: { name, persona }` block still works and is mutually exclusive with `pak.active`. If neither is specified, the bundled `paty` PAK is loaded automatically.
+
+User-provided `pipeline.tts.voice` or `pipeline.llm.model` override what the PAK declares — useful for debugging or forcing every PAK onto a single voice.
+
+PAKs may pin `voice.llm.model` to a specific LLM. This is allowed but expensive — switching to or from a differently-pinned PAK forces a full LLM reload. PATY logs a loud warning at startup when a pin disagrees with the resolved hardware profile.
+
+> **Note:** hot-swap is not yet implemented. `paty pak switch <name>` updates the active pointer; the change applies on the next `paty run`. A follow-up will land in-process swap (TTS replaced live, LLM warmed up where compatible).
 
 ## Event Bus
 

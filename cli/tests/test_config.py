@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from paty.config.loader import load_config
 from paty.config.schema import (
+    PakConfig,
     PatyConfig,
     PipelineConfig,
 )
@@ -53,9 +54,30 @@ class TestPatyConfig:
         assert cfg.hardware.profile.value == "auto"
         assert cfg.tracing.enabled is True
 
-    def test_missing_agent_raises(self):
-        with pytest.raises(ValidationError):
-            PatyConfig.model_validate({})
+    def test_empty_config_is_valid(self):
+        """An empty config is allowed — the runtime will fall back to the
+        bundled default PAK."""
+        cfg = PatyConfig.model_validate({})
+        assert cfg.agent is None
+        assert cfg.pak.active is None
+
+    def test_pak_only(self):
+        cfg = PatyConfig.model_validate({"pak": {"active": "nova"}})
+        assert cfg.agent is None
+        assert cfg.pak.active == "nova"
+
+    def test_agent_and_pak_are_mutually_exclusive(self):
+        with pytest.raises(ValidationError, match="not both"):
+            PatyConfig.model_validate(
+                {
+                    "agent": {"name": "x", "persona": "x"},
+                    "pak": {"active": "nova"},
+                }
+            )
+
+    def test_pak_block_defaults(self):
+        assert PakConfig().active is None
+        assert PakConfig().paks_dir is None
 
     def test_full_config(self):
         data = {
