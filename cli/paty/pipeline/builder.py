@@ -56,12 +56,13 @@ def build_pipeline(
     enable_metrics: bool = True,
     observers: list[BaseObserver] | None = None,
     input_mute_filter: Any = None,
+    text_injector: Any = None,
 ) -> tuple[Pipeline, PipelineTask, PipelineRunner]:
     """Build a standard voice agent pipeline.
 
     Pipeline ordering:
-        transport.input → [input_mute] → stt_mute → stt → user_agg → llm →
-        tts → transport.output → assistant_agg
+        transport.input → [input_mute] → stt_mute → stt → [text_injector] →
+        user_agg → llm → tts → transport.output → assistant_agg
 
     ``stt_mute`` is an ``STTMuteFilter`` set to ``ALWAYS`` — it drops mic
     audio and VAD frames for the full duration the bot is speaking, which
@@ -70,6 +71,10 @@ def build_pipeline(
 
     ``input_mute_filter`` (optional) drops mic frames whenever the user has
     asked PATY to stop listening — driven from the bus.
+
+    ``text_injector`` (optional) lets the bus deliver typed messages straight
+    into the user-aggregator stream, bypassing STT but reusing the same
+    turn-boundary semantics.
     """
     messages = [{"role": "system", "content": persona}]
     context = LLMContext(messages)
@@ -85,10 +90,11 @@ def build_pipeline(
     processors: list[Any] = [transport.input()]
     if input_mute_filter is not None:
         processors.append(input_mute_filter)
+    processors.extend([stt_mute, stt])
+    if text_injector is not None:
+        processors.append(text_injector)
     processors.extend(
         [
-            stt_mute,
-            stt,
             user_aggregator,
             llm,
             tts,

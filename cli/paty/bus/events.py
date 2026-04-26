@@ -43,6 +43,7 @@ class BusAction(StrEnum):
 
     MUTE_TOGGLE = "mute.toggle"
     MUTE_SET = "mute.set"
+    CHAT_SEND = "chat.send"
 
 
 class BusCommand(BaseModel):
@@ -50,6 +51,7 @@ class BusCommand(BaseModel):
 
     action: BusAction
     muted: bool | None = None
+    text: str | None = None
 
 
 class AgentState(StrEnum):

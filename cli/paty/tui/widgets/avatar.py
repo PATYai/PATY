@@ -15,6 +15,12 @@ _FACES = {
     "speaking": "(• o •)",
 }
 
+# Input-driven overrides — change the face without changing the state label.
+_INPUT_FACES = {
+    "typing": "(✻ ◡ ✻)",
+    "clearing": "(✖ _ ✖)",
+}
+
 
 def _state_style(state: str, theme: Theme) -> str:
     return {
@@ -25,8 +31,14 @@ def _state_style(state: str, theme: Theme) -> str:
     }.get(state, theme.state_idle)
 
 
-def render_avatar(state: str, theme: Theme, *, muted: bool = False) -> Panel:
-    face = _FACES.get(state, _FACES["idle"])
+def render_avatar(
+    state: str,
+    theme: Theme,
+    *,
+    muted: bool = False,
+    input_state: str | None = None,
+) -> Panel:
+    face = _INPUT_FACES.get(input_state or "", _FACES.get(state, _FACES["idle"]))
     style = _state_style(state, theme)
     body = Text()
     body.append(f"{face}\n\n", style=style)
