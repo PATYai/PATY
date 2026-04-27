@@ -1,0 +1,41 @@
+name: Userland (pre-merge)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'cli/**'
+      - '.github/workflows/userland-pre-merge.yml'
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install system deps (portaudio for pyaudio)
+        run: sudo apt-get update && sudo apt-get install -y portaudio19-dev
+
+      - name: Build wheel from source
+        working-directory: cli
+        run: uv build --wheel
+
+      - name: Install bare wheel + pytest into clean venv
+        run: |
+          uv venv /tmp/userland
+          uv pip install --python /tmp/userland/bin/python cli/dist/*.whl pytest pytest-asyncio
+
+      - name: Run pre-merge userland subset against installed paty
+        working-directory: cli
+        run: /tmp/userland/bin/pytest tests/userland -m "userland and merge" -v
