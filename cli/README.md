@@ -71,8 +71,7 @@ uv run ruff format --check paty/ tests/  # format check
 The YAML config is PATY's primary interface. A minimal example:
 
 ```yaml
-agent:
-  name: front-desk
+pak:
   persona: "You are a receptionist for Dr. Smith's dental office."
 
 pipeline:
@@ -149,7 +148,7 @@ hardware:
   profile: auto
 ```
 
-The legacy `agent: { name, persona }` block still works and is mutually exclusive with `pak.active`. If neither is specified, the bundled `paty` PAK is loaded automatically.
+For an ad-hoc persona without a PAK directory, set `pak.persona` instead of `pak.active` (the two are mutually exclusive). A transient PAK is synthesized from the inline text and routed through the same voice-resolution pipeline as a registered PAK. If neither field is set, the bundled `paty` PAK is loaded automatically.
 
 User-provided `pipeline.tts.voice` or `pipeline.llm.model` override what the PAK declares — useful for debugging or forcing every PAK onto a single voice.
 

@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 
 from paty.config.schema import (
-    AgentConfig,
     LLMConfig,
     PakConfig,
     PatyConfig,
@@ -60,11 +59,15 @@ def isolated_registry(tmp_path: Path) -> PakRegistry:
 
 
 class TestResolvePersona:
-    def test_legacy_agent_returns_pak_none(self, isolated_registry: PakRegistry):
-        cfg = PatyConfig(agent=AgentConfig(name="legacy", persona="hi there"))
+    def test_inline_persona_synthesizes_transient_pak(
+        self, isolated_registry: PakRegistry
+    ):
+        cfg = PatyConfig(pak=PakConfig(persona="hi there"))
         resolved = resolve_persona(cfg, registry=isolated_registry)
         assert resolved.persona == "hi there"
-        assert resolved.pak is None
+        assert resolved.pak is not None
+        assert resolved.pak.name == "inline"
+        assert resolved.pak.soul == "hi there"
 
     def test_named_pak(self, isolated_registry: PakRegistry):
         _make_pak(isolated_registry.paks_dirs[0], "nova")
@@ -76,10 +79,30 @@ class TestResolvePersona:
 
     def test_falls_back_to_default_paty_pak(self, isolated_registry: PakRegistry):
         _make_pak(isolated_registry.paks_dirs[0], "paty", tts_voice="af_bella")
-        cfg = PatyConfig()  # no agent, no pak.active
+        cfg = PatyConfig()  # no pak.persona, no pak.active, no active.txt
         resolved = resolve_persona(cfg, registry=isolated_registry)
         assert resolved.pak is not None
         assert resolved.pak.name == "paty"
+
+    def test_uses_active_txt_when_config_unspecified(
+        self, isolated_registry: PakRegistry
+    ):
+        """`paty pak switch nova` writes active.txt; `paty run` must honor it."""
+        _make_pak(isolated_registry.paks_dirs[0], "nova", tts_voice="af_sky")
+        isolated_registry.set_active("nova")
+        cfg = PatyConfig()  # no pak.active in YAML
+        resolved = resolve_persona(cfg, registry=isolated_registry)
+        assert resolved.pak.name == "nova"
+
+    def test_config_pak_active_outranks_active_txt(
+        self, isolated_registry: PakRegistry
+    ):
+        _make_pak(isolated_registry.paks_dirs[0], "nova")
+        _make_pak(isolated_registry.paks_dirs[0], "coach")
+        isolated_registry.set_active("nova")
+        cfg = PatyConfig(pak=PakConfig(active="coach"))
+        resolved = resolve_persona(cfg, registry=isolated_registry)
+        assert resolved.pak.name == "coach"
 
 
 class TestApplyPakVoice:

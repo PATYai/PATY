@@ -46,7 +46,7 @@ class UIState:
     input_state: str | None = None  # None | "typing" | "clearing"
     # State→text-art mapping shipped inline by the server's session.started
     # event.  None until the first session.started arrives, or when the
-    # active PAK ships no avatar (legacy agent.persona path).
+    # active PAK ships no avatar (e.g. the inline `pak.persona` path).
     session_avatar: dict[str, str] | None = None
 
 

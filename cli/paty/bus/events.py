@@ -92,8 +92,8 @@ class SessionStarted(BaseModel):
     sample_rate_in: int | None = None
     sample_rate_out: int | None = None
     # State→text-art mapping shipped inline by the active PAK.  Subscribers
-    # render this directly; they never reach for local files.  ``None`` for
-    # the legacy ``agent.persona`` path or when the PAK ships no avatar.
+    # render this directly; they never reach for local files.  ``None`` when
+    # the active PAK ships no avatar (e.g. inline ``pak.persona``).
     avatar: dict[str, str] | None = None
 
 

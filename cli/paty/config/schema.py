@@ -21,15 +21,6 @@ class Platform(StrEnum):
     CPU = "cpu"
 
 
-# --- Agent ---
-
-
-class AgentConfig(BaseModel):
-    name: str
-    persona: str
-    flow: str | None = None
-
-
 # --- Pipeline services ---
 
 
@@ -124,24 +115,28 @@ class BusConfig(BaseModel):
 class PakConfig(BaseModel):
     """Selects which PAK provides the persona and voice for this run.
 
-    ``active=None`` means *fall back to the bundled default PAK* — set
-    explicitly to load one named PAK from the registry.
+    Set ``active`` to load a named PAK from the registry, or ``persona`` to
+    supply inline persona text (a transient PAK is synthesized with default
+    voice settings).  Setting neither falls back to the bundled ``paty`` PAK.
+    Setting both is rejected.
     """
 
     active: str | None = None
+    persona: str | None = None
     paks_dir: str | None = None
+
+    @model_validator(mode="after")
+    def _active_and_persona_are_mutually_exclusive(self) -> PakConfig:
+        if self.active is not None and self.persona is not None:
+            msg = "Specify either `pak.active` or `pak.persona`, not both."
+            raise ValueError(msg)
+        return self
 
 
 # --- Top-level ---
 
 
 class PatyConfig(BaseModel):
-    """Either ``agent`` (legacy inline persona) or ``pak`` may drive the
-    persona — never both.  Specifying neither falls back to the bundled
-    ``paty`` PAK at runtime.
-    """
-
-    agent: AgentConfig | None = None
     pak: PakConfig = PakConfig()
     pipeline: PipelineConfig = PipelineConfig()
     hardware: HardwareConfig = HardwareConfig()
@@ -149,10 +144,3 @@ class PatyConfig(BaseModel):
     tracing: TracingConfig = TracingConfig()
     metrics: MetricsConfig = MetricsConfig()
     bus: BusConfig = BusConfig()
-
-    @model_validator(mode="after")
-    def _legacy_and_pak_are_mutually_exclusive(self) -> PatyConfig:
-        if self.agent is not None and self.pak.active is not None:
-            msg = "Specify either `agent.persona` (legacy) or `pak.active`, not both."
-            raise ValueError(msg)
-        return self
