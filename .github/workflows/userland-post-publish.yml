@@ -45,7 +45,7 @@ jobs:
           uv venv /tmp/userland
           for attempt in 1 2 3 4 5 6; do
             if uv pip install --python /tmp/userland/bin/python --refresh \
-                 "paty==${{ steps.ver.outputs.version }}" pytest; then
+                 "paty==${{ steps.ver.outputs.version }}" pytest pytest-asyncio; then
               exit 0
             fi
             echo "PyPI not yet serving paty==${{ steps.ver.outputs.version }} (attempt $attempt), retrying in 30s..."
