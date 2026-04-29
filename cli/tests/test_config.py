@@ -46,10 +46,10 @@ class TestPipelineConfigNormalization:
 class TestPatyConfig:
     def test_minimal_config(self):
         data = {
-            "agent": {"name": "test", "persona": "You are a test agent."},
+            "pak": {"persona": "You are a test agent."},
         }
         cfg = PatyConfig.model_validate(data)
-        assert cfg.agent.name == "test"
+        assert cfg.pak.persona == "You are a test agent."
         assert cfg.pipeline.stt.provider == "whisper"
         assert cfg.hardware.profile.value == "auto"
         assert cfg.tracing.enabled is True
@@ -58,30 +58,28 @@ class TestPatyConfig:
         """An empty config is allowed — the runtime will fall back to the
         bundled default PAK."""
         cfg = PatyConfig.model_validate({})
-        assert cfg.agent is None
         assert cfg.pak.active is None
+        assert cfg.pak.persona is None
 
-    def test_pak_only(self):
+    def test_pak_active(self):
         cfg = PatyConfig.model_validate({"pak": {"active": "nova"}})
-        assert cfg.agent is None
         assert cfg.pak.active == "nova"
+        assert cfg.pak.persona is None
 
-    def test_agent_and_pak_are_mutually_exclusive(self):
+    def test_pak_active_and_persona_are_mutually_exclusive(self):
         with pytest.raises(ValidationError, match="not both"):
             PatyConfig.model_validate(
-                {
-                    "agent": {"name": "x", "persona": "x"},
-                    "pak": {"active": "nova"},
-                }
+                {"pak": {"active": "nova", "persona": "inline text"}}
             )
 
     def test_pak_block_defaults(self):
         assert PakConfig().active is None
+        assert PakConfig().persona is None
         assert PakConfig().paks_dir is None
 
     def test_full_config(self):
         data = {
-            "agent": {"name": "front-desk", "persona": "You are a receptionist."},
+            "pak": {"persona": "You are a receptionist."},
             "pipeline": {
                 "stt": {"provider": "whisper", "model": "large-v3-turbo"},
                 "llm": {"provider": "ollama", "model": "qwen3:8b"},
@@ -93,7 +91,7 @@ class TestPatyConfig:
             "tracing": {"enabled": True, "console": False},
         }
         cfg = PatyConfig.model_validate(data)
-        assert cfg.agent.name == "front-desk"
+        assert cfg.pak.persona == "You are a receptionist."
         assert cfg.pipeline.stt.model == "large-v3-turbo"
         assert cfg.pipeline.tts.provider == "kokoro"
         assert cfg.hardware.profile.value == "apple-24gb"
@@ -102,8 +100,7 @@ class TestPatyConfig:
 class TestLoader:
     def test_load_yaml(self, tmp_path: Path):
         yaml_content = textwrap.dedent("""\
-            agent:
-              name: test-bot
+            pak:
               persona: "You are a test bot."
             pipeline:
               stt: whisper
@@ -114,14 +111,13 @@ class TestLoader:
         config_file.write_text(yaml_content)
 
         cfg = load_config(config_file)
-        assert cfg.agent.name == "test-bot"
+        assert cfg.pak.persona == "You are a test bot."
         assert cfg.pipeline.stt.provider == "whisper"
 
     def test_env_interpolation(self, tmp_path: Path, monkeypatch):
         monkeypatch.setenv("TEST_SIP_PASS", "secret123")
         yaml_content = textwrap.dedent("""\
-            agent:
-              name: test-bot
+            pak:
               persona: "Test."
             sip:
               password: "${TEST_SIP_PASS}"
@@ -134,8 +130,7 @@ class TestLoader:
 
     def test_missing_env_var_raises(self, tmp_path: Path):
         yaml_content = textwrap.dedent("""\
-            agent:
-              name: test-bot
+            pak:
               persona: "Test."
             sip:
               password: "${DEFINITELY_NOT_SET_12345}"

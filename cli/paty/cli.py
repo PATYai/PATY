@@ -65,12 +65,11 @@ async def _run(config_path: str) -> None:
     from paty.runtime.manager import ManagedProcess, create_managed_llm
     from paty.tracing.setup import setup_tracing
 
-    # 1. Load config + resolve persona (legacy `agent` block, named PAK,
+    # 1. Load config + resolve persona (inline `pak.persona`, named PAK,
     #    or bundled default — see paty.pak.runtime.resolve_persona).
     raw_config = load_config(config_path)
     resolved_persona = resolve_persona(raw_config)
-    if resolved_persona.pak is not None:
-        raw_config = apply_pak_voice(raw_config, resolved_persona.pak)
+    raw_config = apply_pak_voice(raw_config, resolved_persona.pak)
 
     # 2. Initialize tracing
     tracer = setup_tracing(raw_config.tracing)
@@ -105,12 +104,11 @@ async def _run(config_path: str) -> None:
 
             console.print(f"[bold]Profile:[/] {profile.name}")
 
-            if resolved_persona.pak is not None:
-                pak = resolved_persona.pak
-                console.print(f"[bold]PAK:[/] {pak.name} v{pak.manifest.pak.version}")
-                warn_msg = warn_if_llm_pin_off_profile(pak, profile.llm_model)
-                if warn_msg:
-                    console.print(f"[yellow]warning:[/] {warn_msg}")
+            pak = resolved_persona.pak
+            console.print(f"[bold]PAK:[/] {pak.name} v{pak.manifest.pak.version}")
+            warn_msg = warn_if_llm_pin_off_profile(pak, profile.llm_model)
+            if warn_msg:
+                console.print(f"[yellow]warning:[/] {warn_msg}")
 
             # 5. Start managed LLM server
             llm_model = raw_config.pipeline.llm.model or profile.llm_model
@@ -214,11 +212,7 @@ async def _run(config_path: str) -> None:
                 )
 
         if bus is not None:
-            avatar = (
-                resolved_persona.pak.avatar
-                if resolved_persona.pak and resolved_persona.pak.avatar
-                else None
-            )
+            avatar = resolved_persona.pak.avatar or None
             bus.publish(
                 EventType.SESSION_STARTED,
                 SessionStarted(
@@ -232,13 +226,9 @@ async def _run(config_path: str) -> None:
                 ),
             )
 
-        agent_label = (
-            raw_config.agent.name
-            if raw_config.agent is not None
-            else (resolved_persona.pak.name if resolved_persona.pak else "paty")
-        )
         console.print(
-            f"\n[green]Agent '{agent_label}' running. Speak into your mic.[/]"
+            f"\n[green]Agent '{resolved_persona.pak.name}' running. "
+            f"Speak into your mic.[/]"
         )
         console.print("[dim]Press Ctrl+C to stop.[/]\n")
 
