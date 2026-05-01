@@ -12,6 +12,8 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+from loguru import logger
+
 from paty.config.schema import LLMConfig, Platform, STTConfig, TTSConfig
 from paty.hardware.profiles import ResolvedProfile
 
@@ -85,10 +87,39 @@ TTS_REGISTRY: dict[tuple[str, Platform], Factory] = {
 }
 
 
+def _ensure_spacy_model_for_misaki() -> None:
+    """Pre-install spaCy's `en_core_web_sm` for misaki's English G2P.
+
+    Misaki tries to auto-download the model on first use, but the install
+    happens inside a process that's already imported spaCy — and spaCy's
+    module lookup caches the "missing" result, so the freshly-installed
+    model isn't picked up. Installing upfront sidesteps the cache problem
+    entirely. ~13MB; subsequent runs skip the download.
+    """
+    import importlib.util
+
+    if importlib.util.find_spec("en_core_web_sm") is not None:
+        return
+
+    import subprocess
+    import sys
+
+    logger.info(
+        "misaki: spaCy model 'en_core_web_sm' not installed — downloading "
+        "(~13MB, one-time)"
+    )
+    subprocess.run(
+        [sys.executable, "-m", "spacy", "download", "en_core_web_sm"],
+        check=True,
+    )
+    logger.info("misaki: spaCy model 'en_core_web_sm' installed")
+
+
 def _make_mlx_audio_tts(cfg: TTSConfig, executor: ThreadPoolExecutor | None) -> Any:
     if executor is None:
         msg = "mlx-audio TTS requires a shared compute_executor"
         raise ValueError(msg)
+    _ensure_spacy_model_for_misaki()
     from paty.runtime.tts_service import MLXAudioTTSService
 
     return MLXAudioTTSService(

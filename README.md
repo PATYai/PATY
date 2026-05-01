@@ -9,7 +9,7 @@ PATY is entirely local. And therefore, is entirely free.
 
 # Install & run
 
-Prerequisites: **Python 3.11+** and **[uv](https://docs.astral.sh/uv/)**.
+Prerequisites: **[uv](https://docs.astral.sh/uv/)**.
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh   # if you don't already have uv
