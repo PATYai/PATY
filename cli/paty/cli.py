@@ -40,7 +40,7 @@ def cli():
 def run(config: str | None):
     """Start the voice agent.
 
-    With no CONFIG, runs the bundled default (examples/paty.yaml).
+    With no CONFIG, runs the bundled default config.
     """
     if detect_installed_backend() is None:
         click.echo("No backend installed.\n")
