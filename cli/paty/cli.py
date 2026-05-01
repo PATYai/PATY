@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from importlib import resources
 
 import click
@@ -29,15 +30,32 @@ def _bundled_default_config() -> str:
     return str(resources.files("paty.examples").joinpath("paty.yaml"))
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option(version=__version__)
-def cli():
-    """PATY — Declarative voice agent deployment on Pipecat."""
+@click.pass_context
+def cli(ctx: click.Context) -> None:
+    """PATY — Declarative voice agent deployment on Pipecat.
+
+    With no subcommand, boots the agent with a startup screen and then
+    drops into the live TUI once it's ready.
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+    from paty.startup import launch
+
+    launch()
 
 
 @cli.command()
 @click.argument("config", type=click.Path(exists=True), required=False)
-def run(config: str | None):
+@click.option(
+    "--ready-fd",
+    type=int,
+    default=None,
+    hidden=True,
+    help="Internal: write a byte to this fd when the agent is ready for input.",
+)
+def run(config: str | None, ready_fd: int | None):
     """Start the voice agent.
 
     With no CONFIG, runs the bundled default config.
@@ -48,10 +66,10 @@ def run(config: str | None):
         click.echo("  uv tool install 'paty[cuda]'  # NVIDIA GPU")
         click.echo("  uv tool install 'paty[cpu]'   # Fallback")
         raise SystemExit(1)
-    asyncio.run(_run(config or _bundled_default_config()))
+    asyncio.run(_run(config or _bundled_default_config(), ready_fd=ready_fd))
 
 
-async def _run(config_path: str) -> None:
+async def _run(config_path: str, ready_fd: int | None = None) -> None:
     from concurrent.futures import ThreadPoolExecutor
 
     from paty.bus import BusAction, BusCommand, BusObserver, WebSocketBus
@@ -240,6 +258,13 @@ async def _run(config_path: str) -> None:
             f"Speak into your mic.[/]"
         )
         console.print("[dim]Press Ctrl+C to stop.[/]\n")
+
+        if ready_fd is not None:
+            try:
+                os.write(ready_fd, b"\n")
+                os.close(ready_fd)
+            except OSError:
+                pass
 
         # 9. Run — blocks until cancelled
         await runner.run(task)
