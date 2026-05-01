@@ -2368,7 +2368,6 @@ wheels = [
 
 [[package]]
 name = "paty"
-version = "0.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -2430,10 +2429,10 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp", marker = "extra == 'otlp'", specifier = ">=1.20" },
     { name = "opentelemetry-exporter-prometheus", marker = "extra == 'prometheus'", specifier = ">=0.50b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.20" },
-    { name = "pipecat-ai", extras = ["local", "silero", "openai"] },
-    { name = "pipecat-ai", extras = ["whisper", "silero"], marker = "extra == 'cpu'" },
-    { name = "pipecat-ai", extras = ["whisper", "silero"], marker = "extra == 'cuda'" },
-    { name = "pipecat-ai", extras = ["whisper", "silero"], marker = "extra == 'mlx'" },
+    { name = "pipecat-ai", extras = ["local", "openai", "silero"] },
+    { name = "pipecat-ai", extras = ["silero", "whisper"], marker = "extra == 'cpu'" },
+    { name = "pipecat-ai", extras = ["silero", "whisper"], marker = "extra == 'cuda'" },
+    { name = "pipecat-ai", extras = ["silero", "whisper"], marker = "extra == 'mlx'" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21" },
@@ -2442,7 +2441,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "websockets", specifier = ">=12.0" },
 ]
-provides-extras = ["mlx", "cuda", "cpu", "otlp", "prometheus", "eject", "dev"]
+provides-extras = ["cpu", "cuda", "dev", "eject", "mlx", "otlp", "prometheus"]
 
 [[package]]
 name = "phonemizer-fork"
