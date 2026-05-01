@@ -15,15 +15,19 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
 
-from paty import __version__
-
 # Resolve `paty` next to the running Python so the tests work whether or not
 # the venv's bin/ is on PATH (CI runners typically don't activate the venv).
 PATY_BIN = str(Path(sys.executable).parent / "paty")
+
+# Read the version of the *installed* paty distribution, not whatever an
+# `import paty` would resolve to. In post-publish CI pytest's cwd happens to
+# be the source tree, which can shadow the installed package.
+INSTALLED_VERSION = version("paty")
 
 
 def _paty(*args: str) -> subprocess.CompletedProcess[str]:
@@ -37,7 +41,7 @@ def _paty(*args: str) -> subprocess.CompletedProcess[str]:
 def test_version_matches_dist():
     r = _paty("--version")
     assert r.returncode == 0, r.stderr
-    assert __version__ in r.stdout
+    assert INSTALLED_VERSION in r.stdout
 
 
 @pytest.mark.userland
