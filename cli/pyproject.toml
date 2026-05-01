@@ -25,7 +25,7 @@ dependencies = [
     "pydantic>=2.0",
     "click>=8.0",
     "rich>=13.0",
-    "pipecat-ai[local,silero,openai]",
+    "pipecat-ai[local,silero,openai]>=0.0.108,<1.0",
     "websockets>=12.0",
     "httpx>=0.27",
     "loguru>=0.7",
@@ -36,17 +36,17 @@ dependencies = [
 
 [project.optional-dependencies]
 mlx = [
-    "pipecat-ai[whisper,silero]",
+    "pipecat-ai[whisper,silero]>=0.0.108,<1.0",
     "mlx-lm>=0.20",
     "mlx-audio>=0.2",
     "misaki[en]<0.9",
 ]
 cuda = [
-    "pipecat-ai[whisper,silero]",
+    "pipecat-ai[whisper,silero]>=0.0.108,<1.0",
     "llama-cpp-python",
 ]
 cpu = [
-    "pipecat-ai[whisper,silero]",
+    "pipecat-ai[whisper,silero]>=0.0.108,<1.0",
     "llama-cpp-python",
 ]
 otlp = ["opentelemetry-exporter-otlp>=1.20"]

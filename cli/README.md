@@ -1,40 +1,43 @@
 # PATY — Please & Thank You
 
-Declarative voice agent deployment on Pipecat. Write a YAML config, run `paty run config.yaml`, get a working voice agent. No `bot.py` to write.
+Declarative voice agent deployment on Pipecat. `uv tool install paty && paty run` and you're talking to a voice agent. No `bot.py` to write, no YAML required.
 
-## Prerequisites
-
-- **Python 3.11+**
-- **[uv](https://docs.astral.sh/uv/)** — the Python package manager used to install and run PATY. Install with:
-  ```bash
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  ```
-- **Platform-specific toolchain** for local inference:
-  - **Apple Silicon (macOS arm64):** nothing extra — the `[mlx]` extra pulls in MLX.
-  - **NVIDIA GPU (CUDA):** a working CUDA toolchain so `llama-cpp-python` can build with GPU offload. See the [llama-cpp-python CUDA build docs](https://llama-cpp-python.readthedocs.io/en/latest/#installation-with-specific-hardware-acceleration-blas-cuda-metal-etc).
-  - **CPU-only:** a C/C++ toolchain (`build-essential` on Linux, Xcode Command Line Tools on macOS) for `llama-cpp-python`.
-
-## Installation
+## Quickstart
 
 ```bash
-git clone https://github.com/PATYai/PATY.git
-cd PATY/cli
+curl -LsSf https://astral.sh/uv/install.sh | sh   # if you don't already have uv
+uv tool install paty
+paty run
 ```
 
-Pick the extra that matches your hardware and sync:
+`paty run` with no argument loads a bundled default config (friendly `paty` persona, auto-detected hardware profile). The first `paty run` will detect your platform and tell you exactly which extra to install for local inference:
 
 ```bash
-# Apple Silicon (M1/M2/M3/M4)
-uv sync --extra mlx
-
-# NVIDIA GPU
-uv sync --extra cuda
-
-# CPU-only fallback
-uv sync --extra cpu
+uv tool install 'paty[mlx]'   # Apple Silicon
+uv tool install 'paty[cuda]'  # NVIDIA GPU
+uv tool install 'paty[cpu]'   # CPU fallback
 ```
 
-The extras install Pipecat plus the local inference backend (MLX or `llama-cpp-python`). Skip them only if you plan to point PATY at remote services.
+Then `paty run` again. On first launch PATY will:
+
+1. Pick a hardware profile from your platform and memory.
+2. Download the LLM weights from Hugging Face (a few GB — first start is slow, subsequent runs hit the cache).
+3. Download the Whisper STT model on first use.
+4. Start the managed LLM server, warm it up, then open a local mic/speaker transport so you can talk to the agent.
+
+Press `Ctrl+C` to stop.
+
+To run a config of your own:
+
+```bash
+paty run path/to/your-config.yaml
+```
+
+### Platform notes
+
+- **Apple Silicon (macOS arm64):** the `[mlx]` extra pulls in MLX. No system toolchain required.
+- **NVIDIA GPU (CUDA):** the `[cuda]` extra installs `llama-cpp-python` with GPU offload, which needs a working CUDA toolchain at install time. See the [llama-cpp-python CUDA build docs](https://llama-cpp-python.readthedocs.io/en/latest/#installation-with-specific-hardware-acceleration-blas-cuda-metal-etc).
+- **CPU-only:** the `[cpu]` extra needs a C/C++ toolchain (`build-essential` on Linux, Xcode Command Line Tools on macOS) for `llama-cpp-python`.
 
 ### External services
 
@@ -42,24 +45,11 @@ The extras install Pipecat plus the local inference backend (MLX or `llama-cpp-p
 - **TTS on CUDA/CPU** — the `kokoro` provider expects an OpenAI-compatible Kokoro FastAPI server at `http://localhost:8880/v1`. The easiest way is the Docker image from [remsky/Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI). Apple Silicon runs Kokoro in-process via `mlx-audio` and needs nothing extra.
 - **Piper (CPU alternative)** — `tts: piper` downloads its voice model on first use; no server needed.
 
-## First run
+## Contributing / dev install
 
 ```bash
-uv run paty run examples/paty.yaml
-```
-
-On first launch PATY will:
-
-1. Detect your platform and memory, then pick a hardware profile.
-2. Download the LLM weights (a few GB — the first start is slow; subsequent runs hit the Hugging Face cache).
-3. Download the Whisper STT model on first use.
-4. Start the managed LLM server, warm it up, then open a local mic/speaker transport so you can talk to the agent.
-
-Press `Ctrl+C` to stop.
-
-## Development install
-
-```bash
+git clone https://github.com/PATYai/PATY.git
+cd PATY/cli
 uv sync --extra mlx --extra dev          # or --extra cuda / --extra cpu
 uv run pytest tests/ -v                  # run tests
 uv run ruff check paty/ tests/           # lint
@@ -117,7 +107,7 @@ Environment variables in `${VAR}` syntax are interpolated at load time.
 ## CLI Commands
 
 ```
-paty run <config.yaml>       Start the voice agent
+paty run [config.yaml]       Start the voice agent (no arg → bundled default)
 paty bus tail                Subscribe to a running bus and print events
 paty bus tui                 Live conversation view subscribed to the bus
 paty profiles                List hardware profiles and their model selections
@@ -195,13 +185,13 @@ Every state change is broadcast back as an `input.muted` event with `{muted: boo
 Connects to a running bus and pretty-prints events as they arrive. Useful for verifying the bus end-to-end and as a reference implementation for TUI subscribers.
 
 ```bash
-# terminal 1 — run the agent with bus.enabled: true
-uv run paty run examples/paty.yaml
+# terminal 1 — run the agent (the bundled default has bus.enabled: true)
+paty run
 
 # terminal 2 — tail the bus
-uv run paty bus tail                           # defaults to ws://127.0.0.1:8765
-uv run paty bus tail --url ws://remote:8765    # different host/port
-uv run paty bus tail --no-audio                # hide audio frame lines
+paty bus tail                           # defaults to ws://127.0.0.1:8765
+paty bus tail --url ws://remote:8765    # different host/port
+paty bus tail --no-audio                # hide audio frame lines
 ```
 
 ### `paty bus tui`
@@ -209,8 +199,8 @@ uv run paty bus tail --no-audio                # hide audio frame lines
 Full-screen view of the same stream — transcript on the left, avatar top-right, equalizer bottom-right.
 
 ```bash
-uv run paty bus tui                            # defaults to ws://127.0.0.1:8765
-uv run paty bus tui --url ws://remote:8765
+paty bus tui                            # defaults to ws://127.0.0.1:8765
+paty bus tui --url ws://remote:8765
 ```
 
 Built on Rich's immediate-mode `Live`: hold state in memory, rebuild the renderable tree on each event, let the library diff and repaint. `Layout` carves the terminal into named regions and each widget is a pure `(state) -> Renderable` function, so swapping a stub for real content is a one-file edit.
