@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from importlib import resources
 
 import click
 from rich.console import Console
@@ -23,6 +24,11 @@ def detect_installed_backend() -> str | None:
     return None
 
 
+def _bundled_default_config() -> str:
+    """Return the filesystem path to the default config bundled with paty."""
+    return str(resources.files("paty.examples").joinpath("paty.yaml"))
+
+
 @click.group()
 @click.version_option(version=__version__)
 def cli():
@@ -30,16 +36,19 @@ def cli():
 
 
 @cli.command()
-@click.argument("config", type=click.Path(exists=True))
-def run(config: str):
-    """Start the voice agent from a YAML config."""
+@click.argument("config", type=click.Path(exists=True), required=False)
+def run(config: str | None):
+    """Start the voice agent.
+
+    With no CONFIG, runs the bundled default (examples/paty.yaml).
+    """
     if detect_installed_backend() is None:
         click.echo("No backend installed.\n")
         click.echo("  uv tool install 'paty[mlx]'   # Apple Silicon")
         click.echo("  uv tool install 'paty[cuda]'  # NVIDIA GPU")
         click.echo("  uv tool install 'paty[cpu]'   # Fallback")
         raise SystemExit(1)
-    asyncio.run(_run(config))
+    asyncio.run(_run(config or _bundled_default_config()))
 
 
 async def _run(config_path: str) -> None:

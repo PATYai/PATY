@@ -55,6 +55,28 @@ def test_help_lists_core_commands():
 
 @pytest.mark.userland
 @pytest.mark.merge
+def test_pipeline_modules_import():
+    """Smoke-import the heavy modules `paty run` lazily pulls in.
+
+    Catches ABI/API breaks in pinned upstream deps (e.g. pipecat) that none
+    of the introspection commands above would surface, since the no-backend
+    gate exits before `_run()` reaches these imports.
+    """
+    code = (
+        "import paty.pipeline.builder, "
+        "paty.resolve.registry, "
+        "paty.runtime.manager, "
+        "paty.runtime.stt_service, "
+        "paty.runtime.tts_service"
+    )
+    r = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=False
+    )
+    assert r.returncode == 0, r.stderr
+
+
+@pytest.mark.userland
+@pytest.mark.merge
 def test_bundled_pak_listed():
     r = _paty("pak", "list")
     assert r.returncode == 0

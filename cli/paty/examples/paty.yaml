@@ -1,0 +1,16 @@
+hardware:
+  profile: auto
+
+tracing:
+  enabled: true
+  console: true
+
+metrics:
+  enabled: true
+  console_interval: 10   # seconds between Rich table prints (0 to disable)
+  prometheus: false       # set true + install paty[prometheus] for :9464/metrics
+
+bus:
+  enabled: true          # publish session events for subscribers (e.g. `paty bus tail`)
+  host: 127.0.0.1
+  port: 8765
