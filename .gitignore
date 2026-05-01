@@ -13,3 +13,6 @@ KMS
 
 # Node
 node_modules/
+
+# hatch-vcs generated
+cli/paty/_version.py

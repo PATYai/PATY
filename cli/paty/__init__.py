@@ -1,3 +1,6 @@
 """PATY — Declarative voice agent deployment on Pipecat."""
 
-__version__ = "0.0.1"
+try:
+    from paty._version import __version__
+except ImportError:
+    __version__ = "0.0.0+unknown"
