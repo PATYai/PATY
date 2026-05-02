@@ -33,6 +33,13 @@ Don't like the voice? Run `paty pak switch`. `nova` is bundled.
 paty pak switch nova
 ```
 
+# PAKs (Personality Augmentation Kits)
+Want to change your voice and personality? Switch PAKs.
+```
+paty pak switch nova
+```
+PATY ships with two paks: Paty and Nova
+
 # Themes
 ![Night](docs/materials/PATYCLINight.png)
 ![Day](docs/materials/PATYCLIDay.png)
