@@ -9,10 +9,11 @@ PATY is entirely local. And therefore, is entirely free.
 
 # Install & run
 
-Prerequisites: **[uv](https://docs.astral.sh/uv/)**.
+Prerequisites: **[uv](https://docs.astral.sh/uv/)** and **[portaudio](https://github.com/PortAudio/portaudio)**. The happy path is for MacOS on Apple Silicon. CUDA coming soon.
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh   # if you don't already have uv
+brew install portaudio
 uv tool install paty
 paty run
 ```
@@ -21,15 +22,16 @@ paty run
 
 ```bash
 uv tool install 'paty[mlx]'    # Apple Silicon
-uv tool install 'paty[cuda]'   # NVIDIA GPU
-uv tool install 'paty[cpu]'    # CPU fallback
+uv tool install 'paty[cuda]'   # NVIDIA GPU -- coming soon
 ```
 
 Then `paty run` again. First launch downloads the LLM and STT models (a few GB) and is slow; subsequent runs reuse the Hugging Face cache.
 
-CUDA/CPU users also need a [Kokoro FastAPI](https://github.com/remsky/Kokoro-FastAPI) server on `localhost:8880` for TTS — Apple Silicon runs Kokoro in-process.
-
-See [`cli/README.md`](cli/README.md) for the config schema, CLI commands, hardware profiles, the event bus, and dev setup.
+# PAKs (Personality Augmentation Kits)
+Don't like the voice? Run `paty pak switch`. `nova` is bundled.
+```
+paty pak switch nova
+```
 
 # PAKs (Personality Augmentation Kits)
 Want to change your voice and personality? Switch PAKs.
