@@ -1,0 +1,16 @@
+pak:
+  name: nova
+  version: 0.1.0
+  description: "Nova — a sharp, scientifically-curious sci-fi co-pilot."
+  soul: soul.md
+
+voice:
+  tts:
+    provider: kokoro
+    voice: bf_isabella
+  llm:
+    model: null
+
+conversation:
+  retention_days: 30
+  max_turns_loaded: 50
