@@ -132,8 +132,12 @@ async def _run(config_path: str) -> None:
                 llm_span.set_attribute("paty.llm.model_id", llm.model_id)
 
                 # Warmup: force model into memory so first query is fast
-                console.print("[bold]LLM:[/] warming up...")
-                await llm.process.warmup(llm.model_id)
+                with console.status(
+                    "[bold]LLM:[/] warming up "
+                    "(first run may need to download the model)…",
+                ):
+                    await llm.process.warmup(llm.model_id)
+                console.print("[bold]LLM:[/] warmup complete")
 
             # Point LLM config at the managed server
             raw_config.pipeline.llm = raw_config.pipeline.llm.model_copy(
