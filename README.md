@@ -31,6 +31,13 @@ CUDA/CPU users also need a [Kokoro FastAPI](https://github.com/remsky/Kokoro-Fas
 
 See [`cli/README.md`](cli/README.md) for the config schema, CLI commands, hardware profiles, the event bus, and dev setup.
 
+# PAKs (Personality Augmentation Kits)
+Want to change your voice and personality? Switch PAKs.
+```
+paty pak switch nova
+```
+PATY ships with two paks: Paty and Nova
+
 # Themes
 ![Night](docs/materials/PATYCLINight.png)
 ![Day](docs/materials/PATYCLIDay.png)
