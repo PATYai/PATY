@@ -7,7 +7,7 @@ pak:
 voice:
   tts:
     provider: kokoro
-    voice: am_fenrir
+    voice: am_puck
   llm:
     model: null
 
