@@ -87,32 +87,68 @@ TTS_REGISTRY: dict[tuple[str, Platform], Factory] = {
 }
 
 
+_EN_CORE_WEB_SM_URL = (
+    "https://github.com/explosion/spacy-models/releases/download/"
+    "en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+)
+
+
 def _ensure_spacy_model_for_misaki() -> None:
-    """Pre-install spaCy's `en_core_web_sm` for misaki's English G2P.
+    """Make sure `en_core_web_sm` is installed AND importable from this process.
 
-    Misaki tries to auto-download the model on first use, but the install
-    happens inside a process that's already imported spaCy — and spaCy's
-    module lookup caches the "missing" result, so the freshly-installed
-    model isn't picked up. Installing upfront sidesteps the cache problem
-    entirely. ~13MB; subsequent runs skip the download.
+    Misaki uses spaCy's English G2P pipeline, which needs `en_core_web_sm`.
+    spaCy's own `download` command shells out to `pip install`, but
+    `uv tool` venvs don't have pip — the call appears to succeed (rc=0)
+    while landing nothing in the tool's site-packages. We bypass that and
+    use `uv pip install --python <ours>` against the model wheel URL,
+    which targets the running tool venv directly.
     """
-    import importlib.util
-
-    if importlib.util.find_spec("en_core_web_sm") is not None:
-        return
-
+    import importlib
+    import shutil
     import subprocess
     import sys
 
+    try:
+        importlib.import_module("en_core_web_sm")
+        return  # already there
+    except ImportError:
+        pass
+
+    if shutil.which("uv") is not None:
+        cmd = ["uv", "pip", "install", "--python", sys.executable, _EN_CORE_WEB_SM_URL]
+    else:
+        cmd = [sys.executable, "-m", "pip", "install", _EN_CORE_WEB_SM_URL]
+
     logger.info(
-        "misaki: spaCy model 'en_core_web_sm' not installed — downloading "
-        "(~13MB, one-time)"
+        f"misaki: installing en_core_web_sm via `{' '.join(cmd[:3])}` (~13MB, one-time)"
     )
-    subprocess.run(
-        [sys.executable, "-m", "spacy", "download", "en_core_web_sm"],
-        check=True,
-    )
-    logger.info("misaki: spaCy model 'en_core_web_sm' installed")
+    result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+    if result.stdout:
+        logger.debug(f"misaki: install stdout:\n{result.stdout}")
+    if result.stderr:
+        logger.debug(f"misaki: install stderr:\n{result.stderr}")
+    if result.returncode != 0:
+        msg = (
+            f"Failed to install en_core_web_sm (rc={result.returncode}). "
+            f"Stderr: {result.stderr}"
+        )
+        logger.error(msg)
+        raise RuntimeError(msg)
+
+    importlib.invalidate_caches()
+    try:
+        importlib.import_module("en_core_web_sm")
+    except ImportError as e:
+        logger.error(
+            "misaki: en_core_web_sm install reported success but the running "
+            f"process still can't import it: {e}.\n"
+            f"Install command: {' '.join(cmd)}\n"
+            f"Install stdout:\n{result.stdout}\n"
+            f"Install stderr:\n{result.stderr}"
+        )
+        raise
+
+    logger.info("misaki: en_core_web_sm installed and importable")
 
 
 def _make_mlx_audio_tts(cfg: TTSConfig, executor: ThreadPoolExecutor | None) -> Any:

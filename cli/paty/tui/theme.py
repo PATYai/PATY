@@ -12,7 +12,9 @@ class Theme:
     agent: str
     border: str
     pending: str
-    equalizer: str
+    equalizer_low: str
+    equalizer_mid: str
+    equalizer_high: str
     state_idle: str
     state_listening: str
     state_thinking: str
@@ -25,7 +27,9 @@ DAY = Theme(
     agent="bold black",
     border="grey30",
     pending="grey50 italic",
-    equalizer="steel_blue",
+    equalizer_low="dark_sea_green4",
+    equalizer_mid="gold3",
+    equalizer_high="khaki1",
     state_idle="grey27",
     state_listening="steel_blue1",
     state_thinking="dark_khaki",
@@ -39,7 +43,9 @@ NIGHT = Theme(
     agent="bold magenta",
     border="dim",
     pending="dim italic",
-    equalizer="cyan",
+    equalizer_low="green3",
+    equalizer_mid="cyan",
+    equalizer_high="bright_cyan",
     state_idle="dim",
     state_listening="cyan",
     state_thinking="yellow",

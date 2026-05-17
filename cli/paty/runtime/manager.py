@@ -90,7 +90,7 @@ class ManagedProcess:
         msg = f"{self.name} did not become healthy within {timeout}s at {url}"
         raise TimeoutError(msg)
 
-    async def warmup(self, model_id: str) -> None:
+    async def warmup(self, model_id: str, timeout: float = 600.0) -> None:
         """Send a short completion request to force the model into memory."""
         url = f"http://127.0.0.1:{self.port}/v1/chat/completions"
         async with httpx.AsyncClient() as client:
@@ -101,7 +101,7 @@ class ManagedProcess:
                     "messages": [{"role": "user", "content": "hi"}],
                     "max_tokens": 1,
                 },
-                timeout=120.0,
+                timeout=timeout,
             )
             resp.raise_for_status()
 

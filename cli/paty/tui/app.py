@@ -16,11 +16,12 @@ from rich.console import Console
 from rich.layout import Layout
 from rich.live import Live
 
+from paty.bus.codec import unpack_audio_frame
 from paty.tui.conversation import Conversation
 from paty.tui.layout import build_layout
 from paty.tui.theme import DAY, Theme, next_theme
 from paty.tui.widgets.avatar import render_avatar
-from paty.tui.widgets.equalizer import render_equalizer
+from paty.tui.widgets.equalizer import EQ_CHANNELS, compute_levels, render_equalizer
 from paty.tui.widgets.input import input_height, render_input
 from paty.tui.widgets.transcript import render_transcript
 
@@ -48,6 +49,7 @@ class UIState:
     # event.  None until the first session.started arrives, or when the
     # active PAK ships no avatar (e.g. the inline `pak.persona` path).
     session_avatar: dict[str, str] | None = None
+    eq_levels: list[float] = field(default_factory=lambda: [0.0] * EQ_CHANNELS)
 
 
 @contextlib.contextmanager
@@ -207,6 +209,16 @@ async def _run(url: str) -> None:
                 try:
                     async for msg in ws:
                         if isinstance(msg, bytes):
+                            try:
+                                frame = unpack_audio_frame(msg)
+                            except ValueError:
+                                continue
+                            state.eq_levels = compute_levels(
+                                frame.pcm, frame.sample_rate, state.eq_levels
+                            )
+                            layout["equalizer"].update(
+                                render_equalizer(state.theme, state.eq_levels)
+                            )
                             continue
                         if _dispatch(state, msg):
                             paint()
@@ -257,7 +269,7 @@ def _paint(layout: Layout, state: UIState, console_width: int) -> None:
             state_faces=state.session_avatar,
         )
     )
-    layout["equalizer"].update(render_equalizer(state.theme))
+    layout["equalizer"].update(render_equalizer(state.theme, state.eq_levels))
     layout["input"].update(render_input(state.input_buffer, state.theme))
     layout["input"].size = input_height(state.input_buffer, console_width)
 
