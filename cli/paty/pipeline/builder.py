@@ -27,7 +27,7 @@ with warnings.catch_warnings():
         STTMuteFilter,
         STTMuteStrategy,
     )
-from pipecat.transports.local.audio import (
+from paty.pipeline.local_audio import (
     LocalAudioTransport,
     LocalAudioTransportParams,
 )

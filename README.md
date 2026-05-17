@@ -9,14 +9,15 @@ PATY is entirely local. And therefore, is entirely free.
 
 # Install & run
 
-Prerequisites: **[uv](https://docs.astral.sh/uv/)** and **[portaudio](https://github.com/PortAudio/portaudio)**. The happy path is for MacOS on Apple Silicon. CUDA coming soon.
+Prerequisites: **[uv](https://docs.astral.sh/uv/)**. The happy path is for MacOS on Apple Silicon. CUDA coming soon.
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh   # if you don't already have uv
-brew install portaudio
 uv tool install paty
 paty run
 ```
+
+> On Linux, install `libportaudio2` (`sudo apt-get install libportaudio2`) so sounddevice can find the host's PortAudio runtime. macOS and Windows wheels bundle PortAudio.
 
 `paty run` with no argument loads a bundled default config. The first run will detect your platform and tell you which extra to install for local inference:
 

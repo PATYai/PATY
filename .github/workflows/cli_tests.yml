@@ -29,8 +29,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install system deps (portaudio for pyaudio)
-        run: sudo apt-get update && sudo apt-get install -y portaudio19-dev
+      - name: Install system deps (libportaudio2 for sounddevice)
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
 
       - name: Install dependencies
         run: uv sync --extra dev
