@@ -17,12 +17,12 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
 
-# README banner. Box on the left is the mascot face, the rest spells PATY.
+# Header banner — just the PATY wordmark; mascot lives in the left pane.
 _LOGO = (
-    "┌───┐   ██████   █████   ██████   ██  ██\n"
-    "│ • │   █    █   █   █     ██     ██████\n"
-    "│ • │   ██████   █████     ██       ██  \n"
-    "└───┘   █        █   █     ██       ██  "
+    "██████   █████   ██████   ██  ██\n"
+    "█    █   █   █     ██     ██████\n"
+    "██████   █████     ██       ██  \n"
+    "█        █   █     ██       ██  "
 )
 
 # Larger boxy face for the dedicated mascot panel.
@@ -77,18 +77,44 @@ class BootScreen:
     def _render_mascot(self) -> Panel:
         return Panel(
             Align.center(Text(_MASCOT, style="bold magenta"), vertical="middle"),
-            title="paty",
             border_style="magenta",
         )
 
     def _render_logs(self) -> Panel:
         with self._lock:
-            body = (
-                Group(*self._lines)
-                if self._lines
-                else Text("booting…", style="dim")
-            )
+            if not self._lines:
+                body: Group | Text = Text("booting…", style="dim")
+            else:
+                body = Group(*self._tail_for_viewport())
         return Panel(body, title="boot log", border_style="cyan")
+
+    def _tail_for_viewport(self) -> list[Text]:
+        """Return the most recent lines that fit the logs panel's visible area.
+
+        Rich clips overflowing Group content at the bottom, so a naive render
+        keeps the oldest lines on screen instead of the newest. We measure
+        the available rows (panel border + padding subtracted) and walk the
+        deque from the back, counting wrapped rows, until the budget runs out.
+        """
+        size = self._console.size
+        # body height = total - header(6); logs panel eats 2 rows of border
+        # and the default Panel padding adds another 2 rows (top + bottom).
+        visible_rows = max(1, size.height - 6 - 2 - 2)
+        # logs panel width = total - mascot column(17) - logs borders(2) - padding(2).
+        inner_width = max(1, size.width - 17 - 2 - 2)
+
+        selected: list[Text] = []
+        used = 0
+        for line in reversed(self._lines):
+            rows = max(1, -(-line.cell_len // inner_width))  # ceil division
+            if used + rows > visible_rows and selected:
+                break
+            selected.append(line)
+            used += rows
+            if used >= visible_rows:
+                break
+        selected.reverse()
+        return selected
 
     def start(self) -> None:
         if self._live is not None:
