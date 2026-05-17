@@ -7,6 +7,7 @@ ready pipe (passed as ``--ready-fd``).
 
 from __future__ import annotations
 
+import contextlib
 import os
 import signal
 import subprocess
@@ -38,7 +39,7 @@ def _resolve_bus_url() -> str | None:
     return f"ws://{cfg.bus.host}:{cfg.bus.port}"
 
 
-def _open_log_file() -> tuple[Path, "object"]:
+def _open_log_file() -> tuple[Path, object]:
     log_dir = Path.home() / ".paty" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     path = log_dir / f"run-{int(time.time())}.log"
@@ -46,10 +47,8 @@ def _open_log_file() -> tuple[Path, "object"]:
 
 
 def _kill_group(pid: int, sig: int) -> None:
-    try:
+    with contextlib.suppress(ProcessLookupError):
         os.killpg(pid, sig)
-    except ProcessLookupError:
-        pass
 
 
 def launch() -> None:
@@ -92,10 +91,8 @@ def launch() -> None:
         except OSError:
             data = b""
         finally:
-            try:
+            with contextlib.suppress(OSError):
                 os.close(ready_r)
-            except OSError:
-                pass
         if data:
             ready_event.set()
 
@@ -107,10 +104,8 @@ def launch() -> None:
                 if not ready_event.is_set():
                     boot.write_line(line)
         finally:
-            try:
+            with contextlib.suppress(OSError):
                 log_file.close()
-            except OSError:
-                pass
 
     watcher = threading.Thread(target=_watch_ready, daemon=True)
     pump = threading.Thread(target=_pump_logs, daemon=True)
@@ -136,10 +131,8 @@ def launch() -> None:
         pump.join(timeout=2)
         sys.stdout.write("\x1b[2J\x1b[H")
         sys.stdout.flush()
-        try:
+        with contextlib.suppress(OSError):
             sys.stdout.write(log_path.read_text())
-        except OSError:
-            pass
         sys.stderr.write(
             f"\npaty: startup failed (exit {proc.returncode}). "
             f"Logs saved to {log_path}\n"
