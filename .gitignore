@@ -10,9 +10,12 @@ KMS
 *.egg-info
 .pytest_cache
 .ruff_cache
+.mcp.json
+site/
 
 # Node
 node_modules/
+mcp/ui/dist/
 
 # hatch-vcs generated
 cli/paty/_version.py
