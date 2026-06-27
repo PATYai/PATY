@@ -272,7 +272,12 @@ def transcript_ui() -> str:
     return _TRANSCRIPT_HTML.read_text()
 
 
-@mcp.tool(meta={"ui": {"resourceUri": _TRANSCRIPT_UI_URI}})
+@mcp.tool(
+    meta={
+        "ui": {"resourceUri": _TRANSCRIPT_UI_URI},
+        "ui/resourceUri": _TRANSCRIPT_UI_URI,
+    }
+)
 async def make_call(
     target_phone: str,
     target_who: str,
