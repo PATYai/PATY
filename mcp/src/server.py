@@ -246,7 +246,17 @@ _TRANSCRIPT_UI_URI = "ui://paty/transcript"
 _TRANSCRIPT_HTML = Path(__file__).parent / "transcript.html"
 
 
-@mcp.resource(_TRANSCRIPT_UI_URI, mime_type="text/html", name="PATY Transcript")
+@mcp.resource(
+    _TRANSCRIPT_UI_URI,
+    mime_type="text/html;profile=mcp-app",
+    name="PATY Transcript",
+    meta={
+        "ui": {
+            "csp": {"connectDomains": [], "resourceDomains": []},
+            "domain": "paty-stage-mcp-fly-dev.oaiusercontent.com",
+        }
+    },
+)
 def transcript_ui() -> str:
     """Bundled React app for live call transcript display."""
     if not _TRANSCRIPT_HTML.exists():
