@@ -276,6 +276,7 @@ def transcript_ui() -> str:
     meta={
         "ui": {"resourceUri": _TRANSCRIPT_UI_URI},
         "ui/resourceUri": _TRANSCRIPT_UI_URI,
+        "openai/outputTemplate": _TRANSCRIPT_UI_URI,
     }
 )
 async def make_call(
