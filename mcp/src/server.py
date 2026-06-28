@@ -19,6 +19,7 @@ from pathlib import Path
 
 import aiohttp
 import jwt
+import mcp.types as raw_types
 from dotenv import load_dotenv
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
@@ -245,17 +246,20 @@ async def get_daily_room(room_name: str) -> dict | None:
 _TRANSCRIPT_UI_URI = "ui://paty/transcript"
 _TRANSCRIPT_HTML = Path(__file__).parent / "transcript.html"
 
+_WIDGET_META = {
+    "openai/outputTemplate": _TRANSCRIPT_UI_URI,
+    "openai/toolInvocation/invoking": "Starting call...",
+    "openai/toolInvocation/invoked": "Call connected.",
+    "openai/widgetAccessible": True,
+    "ui": {"resourceUri": _TRANSCRIPT_UI_URI},
+}
+
 
 @mcp.resource(
     _TRANSCRIPT_UI_URI,
-    mime_type="text/html;profile=mcp-app",
+    mime_type="text/html+skybridge",
     name="PATY Transcript",
-    meta={
-        "ui": {
-            "csp": {"connectDomains": [], "resourceDomains": []},
-            "domain": "paty-stage-mcp-fly-dev.oaiusercontent.com",
-        }
-    },
+    meta=_WIDGET_META,
 )
 def transcript_ui() -> str:
     """Bundled React app for live call transcript display."""
@@ -272,13 +276,7 @@ def transcript_ui() -> str:
     return _TRANSCRIPT_HTML.read_text()
 
 
-@mcp.tool(
-    meta={
-        "ui": {"resourceUri": _TRANSCRIPT_UI_URI},
-        "ui/resourceUri": _TRANSCRIPT_UI_URI,
-        "openai/outputTemplate": _TRANSCRIPT_UI_URI,
-    }
-)
+@mcp.tool(meta=_WIDGET_META)
 async def make_call(
     target_phone: str,
     target_who: str,
@@ -288,7 +286,7 @@ async def make_call(
     secrets: dict[str, str] | None = None,
     caller_id: str | None = None,
     room_name: str | None = None,
-) -> dict:
+) -> raw_types.CallToolResult:
     """
     Initiate an outbound call using Daily.
 
@@ -385,7 +383,7 @@ async def make_call(
                 f"Upgrade your Daily plan to enable outbound phone calls."
             )
 
-        return {
+        result = {
             "success": True,
             "call_id": call_id,
             "room_name": actual_room_name,
@@ -396,13 +394,19 @@ async def make_call(
             "dialout_enabled": dialout_enabled,
             "message": message,
         }
+        return raw_types.CallToolResult(
+            content=[raw_types.TextContent(type="text", text=message)],
+            structuredContent=result,
+            _meta=_WIDGET_META,
+        )
 
     except Exception as e:
         log.exception("make_call failed: %s", e)
-        return {
-            "success": False,
-            "error": str(e),
-        }
+        return raw_types.CallToolResult(
+            content=[raw_types.TextContent(type="text", text=str(e))],
+            structuredContent={"success": False, "error": str(e)},
+            isError=True,
+        )
 
 
 @mcp.tool()
